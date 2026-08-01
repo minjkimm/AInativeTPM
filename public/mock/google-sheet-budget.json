@@ -1,0 +1,13 @@
+{
+  "range": "FY27 Q3 Budget!A1:H7",
+  "majorDimension": "ROWS",
+  "values": [
+    ["Pillar", "Quarter Budget", "Committed", "Actual", "Forecast", "Owner", "Status", "Note"],
+    ["Community", "520000", "441000", "362000", "568000", "Amina Diallo", "At Risk", "Travel and venue forecast is 9% over plan"],
+    ["Developer Advocacy", "410000", "286000", "241000", "397000", "Noah Williams", "On Track", "Two new assets moved to next quarter"],
+    ["Developer / Agent Experience", "360000", "298000", "267000", "354000", "Maya Chen", "On Track", "Contractor extension decision due Aug 14"],
+    ["Open Models", "620000", "492000", "418000", "608000", "Diego Ruiz", "On Track", "Benchmark compute remains within reserve"],
+    ["CUDA", "280000", "192000", "169000", "276000", "Priya Nair", "On Track", "No material variance"],
+    ["Open Source Foundations", "240000", "204000", "181000", "252000", "Elena Park", "Watch", "Maintainer support forecast is 5% over plan"]
+  ]
+}

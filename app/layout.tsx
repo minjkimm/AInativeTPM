@@ -13,8 +13,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://developer-ecosystem-ops-prototype.minji391.chatgpt.site"),
   title: "Developer Ecosystem Operations",
-  description: "A cross-pillar decision system for developer momentum, operational constraints, and evidence-backed resource calls.",
+  description: "An AI-native operational control tower for activations, budgets, roadmaps, playbooks, risks, and leadership decisions.",
+  openGraph: {
+    title: "Developer Ecosystem Operations",
+    description: "Calendar, budgets, roadmaps, and playbooks in one operational control tower.",
+    images: ["/og.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Developer Ecosystem Operations",
+    description: "Calendar, budgets, roadmaps, and playbooks in one operational control tower.",
+    images: ["/og.png"],
+  },
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

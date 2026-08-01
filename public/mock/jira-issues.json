@@ -1,0 +1,129 @@
+{
+  "expand": "schema,names",
+  "startAt": 0,
+  "maxResults": 12,
+  "total": 47,
+  "summary": { "blocked": 6, "overdue": 5 },
+  "issues": [
+    {
+      "id": "10001",
+      "key": "DE-241",
+      "fields": {
+        "summary": "Resolve NIM quickstart credential failure",
+        "status": { "name": "Blocked" },
+        "priority": { "name": "Highest" },
+        "assignee": { "displayName": "Maya Chen" },
+        "duedate": "2026-08-04",
+        "labels": ["weekly-review", "developer-friction"],
+        "customfield_pillar": "Developer / Agent Experience",
+        "customfield_decision": "Confirm product engineering owner and 48-hour fix path",
+        "customfield_reason": "61 developers reproduced the same failure after six activations"
+      }
+    },
+    {
+      "id": "10002",
+      "key": "OM-118",
+      "fields": {
+        "summary": "Complete Kimi model launch package",
+        "status": { "name": "In Progress" },
+        "priority": { "name": "High" },
+        "assignee": { "displayName": "Diego Ruiz" },
+        "duedate": "2026-08-07",
+        "labels": ["weekly-review", "launch-gate"],
+        "customfield_pillar": "Open Models",
+        "customfield_decision": "Launch this week or hold for two cold-start tests",
+        "customfield_reason": "Performance is validated; sample and support routing are incomplete"
+      }
+    },
+    {
+      "id": "10003",
+      "key": "CUDA-390",
+      "fields": {
+        "summary": "Refresh CUDA 13 migration guide",
+        "status": { "name": "In Review" },
+        "priority": { "name": "High" },
+        "assignee": { "displayName": "Priya Nair" },
+        "duedate": "2026-07-30",
+        "labels": ["weekly-review", "enablement"],
+        "customfield_pillar": "CUDA",
+        "customfield_decision": "Assign final technical reviewer",
+        "customfield_reason": "Publication is four days late and blocks two partner migrations"
+      }
+    },
+    {
+      "id": "10004",
+      "key": "ADV-522",
+      "fields": {
+        "summary": "Update agentic AI starter repository",
+        "status": { "name": "In Progress" },
+        "priority": { "name": "High" },
+        "assignee": { "displayName": "Noah Williams" },
+        "duedate": "2026-08-05",
+        "labels": ["weekly-review", "sample"],
+        "customfield_pillar": "Developer Advocacy",
+        "customfield_decision": "Move two staff-days from new content into the repair",
+        "customfield_reason": "Repository is one version behind the live endpoint"
+      }
+    },
+    {
+      "id": "10005",
+      "key": "OSF-074",
+      "fields": {
+        "summary": "Confirm maintainer support for inference plugin",
+        "status": { "name": "Waiting" },
+        "priority": { "name": "Medium" },
+        "assignee": { "displayName": "Elena Park" },
+        "duedate": "2026-08-08",
+        "labels": ["dependency"],
+        "customfield_pillar": "Open Source Foundations",
+        "customfield_decision": "Escalate only if maintainer response misses Friday",
+        "customfield_reason": "External dependency gates the August contribution milestone"
+      }
+    },
+    {
+      "id": "10006",
+      "key": "COM-611",
+      "fields": {
+        "summary": "Approve regional workshop delegation plan",
+        "status": { "name": "Decision Needed" },
+        "priority": { "name": "Medium" },
+        "assignee": { "displayName": "Amina Diallo" },
+        "duedate": "2026-08-06",
+        "labels": ["weekly-review", "scale"],
+        "customfield_pillar": "Community",
+        "customfield_decision": "Move three proven workshops to regional delivery",
+        "customfield_reason": "Three pilots matched core quality and would return four travel days monthly"
+      }
+    },
+    {
+      "id": "10007",
+      "key": "DX-184",
+      "fields": {
+        "summary": "Add agent task-pass test to SDK release gate",
+        "status": { "name": "In Progress" },
+        "priority": { "name": "Medium" },
+        "assignee": { "displayName": "Sam Lee" },
+        "duedate": "2026-08-12",
+        "labels": ["agent-experience"],
+        "customfield_pillar": "Developer / Agent Experience",
+        "customfield_decision": "No leadership decision required",
+        "customfield_reason": "Pilot gate is on track"
+      }
+    },
+    {
+      "id": "10008",
+      "key": "ADV-518",
+      "fields": {
+        "summary": "Retire six stale RAG tutorials",
+        "status": { "name": "To Do" },
+        "priority": { "name": "Low" },
+        "assignee": { "displayName": "Iris Gomez" },
+        "duedate": "2026-08-14",
+        "labels": ["content-hygiene"],
+        "customfield_pillar": "Developer Advocacy",
+        "customfield_decision": "No leadership decision required",
+        "customfield_reason": "Standard maintenance work"
+      }
+    }
+  ]
+}

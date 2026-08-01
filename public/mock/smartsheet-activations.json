@@ -1,0 +1,42 @@
+{
+  "id": 884129401,
+  "name": "Developer Ecosystem Activation Calendar",
+  "totalRowCount": 112,
+  "columns": [
+    { "id": 101, "title": "Activation" },
+    { "id": 102, "title": "Date" },
+    { "id": 103, "title": "Region" },
+    { "id": 104, "title": "Pillar" },
+    { "id": 105, "title": "Owner" },
+    { "id": 106, "title": "Status" },
+    { "id": 107, "title": "Risk" },
+    { "id": 108, "title": "Next Action" },
+    { "id": 109, "title": "Budget" }
+  ],
+  "rows": [
+    { "id": 201, "cells": [
+      { "columnId": 101, "value": "Singapore Agent Build Day" }, { "columnId": 102, "value": "2026-08-05" }, { "columnId": 103, "value": "APAC" }, { "columnId": 104, "value": "Community" }, { "columnId": 105, "value": "Amina Diallo" }, { "columnId": 106, "value": "At Risk" }, { "columnId": 107, "value": "GPU lab capacity unconfirmed 4 days out" }, { "columnId": 108, "value": "Approve backup cloud capacity by Monday" }, { "columnId": 109, "value": 42000 }
+    ]},
+    { "id": 202, "cells": [
+      { "columnId": 101, "value": "Kimi Model Partner Preview" }, { "columnId": 102, "value": "2026-08-07" }, { "columnId": 103, "value": "Global" }, { "columnId": 104, "value": "Open Models" }, { "columnId": 105, "value": "Diego Ruiz" }, { "columnId": 106, "value": "Blocked" }, { "columnId": 107, "value": "External cold-start test not complete" }, { "columnId": 108, "value": "Run two Champion builds before launch gate" }, { "columnId": 109, "value": 18000 }
+    ]},
+    { "id": 203, "cells": [
+      { "columnId": 101, "value": "Toronto CUDA Migration Lab" }, { "columnId": 102, "value": "2026-08-09" }, { "columnId": 103, "value": "Americas" }, { "columnId": 104, "value": "CUDA" }, { "columnId": 105, "value": "Priya Nair" }, { "columnId": 106, "value": "Watch" }, { "columnId": 107, "value": "Migration guide review is overdue" }, { "columnId": 108, "value": "Publish guide or switch lab content" }, { "columnId": 109, "value": 27000 }
+    ]},
+    { "id": 204, "cells": [
+      { "columnId": 101, "value": "Paris Open Source Maintainer Roundtable" }, { "columnId": 102, "value": "2026-08-11" }, { "columnId": 103, "value": "EMEA" }, { "columnId": 104, "value": "Open Source Foundations" }, { "columnId": 105, "value": "Elena Park" }, { "columnId": 106, "value": "On Track" }, { "columnId": 107, "value": "None" }, { "columnId": 108, "value": "Finalize maintainer briefing" }, { "columnId": 109, "value": 15000 }
+    ]},
+    { "id": 205, "cells": [
+      { "columnId": 101, "value": "Seoul NIM Workshop" }, { "columnId": 102, "value": "2026-08-12" }, { "columnId": 103, "value": "APAC" }, { "columnId": 104, "value": "Community" }, { "columnId": 105, "value": "Jin Park" }, { "columnId": 106, "value": "On Track" }, { "columnId": 107, "value": "None" }, { "columnId": 108, "value": "Regional facilitator dry run" }, { "columnId": 109, "value": 21000 }
+    ]},
+    { "id": 206, "cells": [
+      { "columnId": 101, "value": "Agent Experience Office Hours" }, { "columnId": 102, "value": "2026-08-13" }, { "columnId": 103, "value": "Global" }, { "columnId": 104, "value": "Developer / Agent Experience" }, { "columnId": 105, "value": "Sam Lee" }, { "columnId": 106, "value": "On Track" }, { "columnId": 107, "value": "None" }, { "columnId": 108, "value": "Publish triage intake form" }, { "columnId": 109, "value": 6000 }
+    ]},
+    { "id": 207, "cells": [
+      { "columnId": 101, "value": "Berlin RAG Blueprint Lab" }, { "columnId": 102, "value": "2026-08-14" }, { "columnId": 103, "value": "EMEA" }, { "columnId": 104, "value": "Developer Advocacy" }, { "columnId": 105, "value": "Iris Gomez" }, { "columnId": 106, "value": "Watch" }, { "columnId": 107, "value": "Starter repository refresh due Aug 5" }, { "columnId": 108, "value": "Validate refreshed sample with facilitator" }, { "columnId": 109, "value": 24000 }
+    ]},
+    { "id": 208, "cells": [
+      { "columnId": 101, "value": "Austin Robotics Hackathon" }, { "columnId": 102, "value": "2026-08-15" }, { "columnId": 103, "value": "Americas" }, { "columnId": 104, "value": "Community" }, { "columnId": 105, "value": "Leo Martins" }, { "columnId": 106, "value": "On Track" }, { "columnId": 107, "value": "None" }, { "columnId": 108, "value": "Confirm partner mentor roster" }, { "columnId": 109, "value": 51000 }
+    ]}
+  ]
+}
