@@ -82,7 +82,7 @@ export default function Home() {
       setData(next);
       setRefreshedAt(new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()));
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Sample data could not be loaded.");
+      setError(loadError instanceof Error ? loadError.message : "Operations data could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -123,7 +123,7 @@ export default function Home() {
         <div className="header-meta">
           <Badge tone={data?.sources.some((source) => source.mode === "live") ? "healthy" : "sample"}>● {data?.sources.some((source) => source.mode === "live") ? "Connected API data" : "Synthetic data · API-ready"}</Badge>
           <span className="updated">{loading ? "Refreshing…" : refreshedAt ? `Refreshed ${refreshedAt}` : "Not refreshed"}</span>
-          <button className="refresh-small" onClick={() => void refresh()} disabled={loading} aria-label="Refresh sample data">↻</button>
+          <button className="refresh-small" onClick={() => void refresh()} disabled={loading} aria-label="Refresh operations data">↻</button>
         </div>
       </header>
 
@@ -134,7 +134,7 @@ export default function Home() {
             <h1>What needs<br />attention?</h1>
           </div>
           <div className="intro-note">
-            <span className="note-index">V3</span>
+            <span className="note-index">V4</span>
             <p>An operational control tower for the activation calendar, budgets, roadmaps, playbooks, risks, owners, and leadership decisions.</p>
           </div>
         </div>
@@ -289,7 +289,7 @@ export default function Home() {
           <div className="view-content sources-view">
             <section className="section-hero source-hero">
               <div><p className="eyebrow">AUTOMATION ARCHITECTURE</p><h2>Teams keep<br />their tools.</h2></div>
-              <div><p>Each adapter translates a source into the same small operational schema. Replace a mock URL with a real authenticated endpoint; the dashboard and meeting logic stay unchanged.</p><button className="copy-button dark-copy" onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh all sources"}</button></div>
+              <div><p>Each adapter translates a source into the same small operational schema. Add approved server-side credentials to switch an adapter from synthetic to live; the dashboard and meeting logic stay unchanged.</p><button className="copy-button dark-copy" onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing…" : "Refresh all sources"}</button></div>
             </section>
 
             <section className="source-card-grid">
