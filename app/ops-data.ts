@@ -206,7 +206,33 @@ export function normalizeOpsPayload(
 }
 
 export async function loadOpsData(): Promise<OpsData> {
-  const response = await fetch("/api/ops", { cache: "no-store" });
-  if (!response.ok) throw new Error("The operations API could not be loaded.");
-  return response.json();
+  try {
+    const response = await fetch("/api/ops", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Operations API returned ${response.status}`);
+    return response.json();
+  } catch {
+    const [jiraResponse, smartsheetResponse, budgetResponse, docsResponse] = await Promise.all([
+      fetch("/mock/jira-issues.json", { cache: "no-store" }),
+      fetch("/mock/smartsheet-activations.json", { cache: "no-store" }),
+      fetch("/mock/google-sheet-budget.json", { cache: "no-store" }),
+      fetch("/mock/playbook-documents.json", { cache: "no-store" }),
+    ]);
+    if (![jiraResponse, smartsheetResponse, budgetResponse, docsResponse].every((response) => response.ok)) {
+      throw new Error("Neither the operations API nor the packaged sample data could be loaded.");
+    }
+    const [jira, smartsheet, budget, documents] = await Promise.all([
+      jiraResponse.json(),
+      smartsheetResponse.json(),
+      budgetResponse.json(),
+      docsResponse.json(),
+    ]);
+    const refreshedAt = new Date().toISOString();
+    const sources: SourceHealth[] = [
+      { name: "Jira", mode: "fallback", status: "Browser fallback active", recordCount: jira.issues.length, refreshedAt },
+      { name: "Smartsheet", mode: "fallback", status: "Browser fallback active", recordCount: smartsheet.rows.length, refreshedAt },
+      { name: "Google Sheets", mode: "fallback", status: "Browser fallback active", recordCount: Math.max(budget.values.length - 1, 0), refreshedAt },
+      { name: "Documents", mode: "fallback", status: "Browser fallback active", recordCount: documents.documents.length, refreshedAt },
+    ];
+    return normalizeOpsPayload(jira, smartsheet, budget, documents, sources);
+  }
 }
