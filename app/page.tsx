@@ -81,6 +81,10 @@ function severityRank(item: AttentionItem) {
   return item.severity === "Critical" ? 0 : item.severity === "Watch" ? 1 : 2;
 }
 
+function isConnectedSource(mode: OpsData["sources"][number]["mode"]) {
+  return mode === "live" || mode === "bridge";
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("overview");
   const [data, setData] = useState<OpsData | null>(null);
@@ -169,7 +173,7 @@ export default function Home() {
           <span>Developer Ecosystem <b>/ Operations</b></span>
         </a>
         <div className="header-meta">
-          <Badge tone={data?.sources.some((source) => source.mode === "live") ? "healthy" : "sample"}>● {data?.sources.some((source) => source.mode === "live") ? "Connected API data" : "Synthetic data · API-ready"}</Badge>
+          <Badge tone={data?.sources.some((source) => isConnectedSource(source.mode)) ? "healthy" : "sample"}>● {data?.sources.some((source) => isConnectedSource(source.mode)) ? "Connected source data" : "Synthetic data · API-ready"}</Badge>
           <span className="updated">{loading ? "Refreshing…" : refreshedAt ? `Refreshed ${refreshedAt}` : "Not refreshed"}</span>
           <button className="refresh-small" onClick={() => void refresh()} disabled={loading} aria-label="Refresh operations data">↻</button>
         </div>
@@ -211,7 +215,7 @@ export default function Home() {
               <article className="metric-card"><span className="metric-label">Roadmap items</span><strong>{data.totals.jiraItems}</strong><span className="delta critical-text">{data.totals.jiraBlocked} blocked · {data.totals.jiraOverdue} overdue</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
               <article className="metric-card"><span className="metric-label">Operational playbooks</span><strong>{data.totals.totalPlaybooks}</strong><span className="delta warning-text">{data.totals.playbooksNeedingReview} need review</span></article>
-              <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>{data.sources.length}/4</strong><span className="delta positive">{data.sources.filter((source) => source.mode === "live").length} live · {data.sources.filter((source) => source.mode !== "live").length} sample</span></article>
+              <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>{data.sources.length}/4</strong><span className="delta positive">{data.sources.filter((source) => isConnectedSource(source.mode)).length} connected · {data.sources.filter((source) => !isConnectedSource(source.mode)).length} sample</span></article>
             </section>
 
             <section className="lead-read">
@@ -391,8 +395,9 @@ export default function Home() {
             <section className="source-card-grid">
               {sourceDetails.map((source) => {
                 const sourceHealth = data.sources.find((item) => item.name === source.name);
-                const badgeTone = sourceHealth?.mode === "live" ? "healthy" : sourceHealth?.mode === "fallback" ? "watch" : "sample";
-                return <article className={`source-card source-card-${source.tone}`} key={source.name}><div><span className="source-pulse" /> <Badge tone={badgeTone}>{sourceHealth?.mode === "live" ? "Live API" : sourceHealth?.mode === "fallback" ? "Fallback active" : "Synthetic sample"}</Badge></div><h2>{source.name}</h2><p>{source.owns}</p><dl><dt>Connector</dt><dd>{source.endpoint}</dd><dt>Target cadence</dt><dd>{source.cadence}</dd><dt>Last result</dt><dd className="healthy-text">{sourceHealth?.recordCount ?? 0} records · {sourceHealth?.status}</dd></dl></article>;
+                const badgeTone = sourceHealth?.mode === "live" || sourceHealth?.mode === "bridge" ? "healthy" : sourceHealth?.mode === "fallback" ? "watch" : "sample";
+                const badgeLabel = sourceHealth?.mode === "live" ? "Live API" : sourceHealth?.mode === "bridge" ? "Connected demo feed" : sourceHealth?.mode === "fallback" ? "Fallback active" : "Synthetic sample";
+                return <article className={`source-card source-card-${source.tone}`} key={source.name}><div><span className="source-pulse" /> <Badge tone={badgeTone}>{badgeLabel}</Badge></div><h2>{source.name}</h2><p>{source.owns}</p><dl><dt>Connector</dt><dd>{source.endpoint}</dd><dt>Target cadence</dt><dd>{source.cadence}</dd><dt>Last result</dt><dd className="healthy-text">{sourceHealth?.recordCount ?? 0} records · {sourceHealth?.status}</dd></dl></article>;
               })}
             </section>
 
@@ -423,12 +428,12 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="honesty-note"><span>Important</span><p>The server connectors are implemented, but this deployment has no company credentials and therefore uses labeled synthetic files. Adding approved environment variables switches each source to its authenticated API without exposing tokens to the browser.</p></section>
+            <section className="honesty-note"><span>Important</span><p>This public interview deployment uses read-only synthetic Google Sheets as connected demo feeds. The Jira and Smartsheet vendor adapters remain implemented but are not labeled live until approved vendor credentials are present. Credentials stay server-side.</p></section>
           </div>
         )}
       </section>
 
-      <footer><span>Developer Ecosystem Operations</span><span>Prototype v0.5 · Nemotron-ready executive copilot</span><span>Calendar · budget · risks · decisions</span></footer>
+      <footer><span>Developer Ecosystem Operations</span><span>Prototype v0.6 · connected demo feeds · Nemotron-ready</span><span>Calendar · budget · risks · decisions</span></footer>
     </main>
   );
 }

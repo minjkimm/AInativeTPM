@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type SourceName = "Jira" | "Smartsheet" | "Google Sheets" | "Documents";
 
-export type SourceMode = "live" | "sample" | "fallback";
+export type SourceMode = "live" | "bridge" | "sample" | "fallback";
 
 export type SourceHealth = {
   name: SourceName;
