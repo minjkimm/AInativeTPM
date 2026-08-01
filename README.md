@@ -1,98 +1,92 @@
-# vinext-starter
+# Developer Ecosystem Operations Control Tower
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+An interview portfolio prototype for an AI-native Technical Program Manager. It turns calendar, risk, budget, and playbook data into an exception queue and a decision-focused Monday operating review.
 
-## Prerequisites
+The repository is designed to work in two modes:
 
-- Node.js `>=22.13.0`
+- **Synthetic mode:** runs immediately with realistic, clearly labeled dummy data.
+- **Connected mode:** reads Jira, Smartsheet, Google Sheets, and Google Drive through authenticated server-side connectors.
 
-## Quick Start
+## What the dashboard answers
+
+1. What changed or became risky?
+2. What needs a cross-team decision now?
+3. What is the recommended call?
+4. Who owns the next step, by when, and which source system must change?
+
+It intentionally does not create one blended score across unlike pillars. Each source remains authoritative for its own domain.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  J[Jira risks] --> A[/api/ops]
+  S[Smartsheet calendar] --> A
+  G[Google Sheets budget] --> A
+  D[Drive playbooks] --> A
+  A --> N[Normalized operating schema]
+  N --> UI[Dashboard]
+  N --> M[Monday decision brief]
+  M --> GH[GitHub Actions schedule]
+  GH --> SL[Slack webhook]
+```
+
+API credentials stay on the server. The browser receives only normalized operational fields. If a connector is not configured or fails, `/api/ops` uses the matching synthetic file and reports `sample` or `fallback` source health.
+
+## Run locally
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
+```
+
+Open `http://localhost:3000`.
+
+Useful checks:
+
+```bash
+npm run lint
 npm run build
+DASHBOARD_URL=http://localhost:3000 npm run digest
 ```
 
-This starter does not use `wrangler.jsonc`.
+## Connect real sources
 
-## Included Shape
+Copy `.env.example` to `.env.local` and add only the systems you can access. An unconfigured source continues to use the synthetic fallback.
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+| Source | Required settings | API |
+|---|---|---|
+| Jira | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira Cloud REST API v3 |
+| Smartsheet | `SMARTSHEET_TOKEN`, `SMARTSHEET_SHEET_ID` | Smartsheet API 2.0 |
+| Google Sheets | `GOOGLE_SHEET_ID`, `GOOGLE_SHEETS_API_KEY` | Sheets Values API v4 |
+| Google Drive | `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_DRIVE_ACCESS_TOKEN` | Drive Files API v3 |
 
-## Workspace Auth Headers
+For Jira, optional field-ID settings map a company’s custom pillar, decision, and reason fields. For production Google Drive access, replace the short-lived token demo with an approved OAuth or service-account flow.
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+## Monday delivery
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+`.github/workflows/monday-ops-digest.yml` runs at 8:15 AM Pacific every Monday and can also be triggered manually. Add these GitHub Actions secrets:
 
-Treat the full name as optional and fall back to email when it is absent:
+- `DASHBOARD_URL`: the deployed dashboard root.
+- `SLACK_WEBHOOK_URL`: the approved incoming webhook.
 
-```tsx
-import { headers } from "next/headers";
+Without the Slack secret, `npm run digest` prints a preview and sends nothing.
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+## Main files
 
-  const displayName = fullName ?? email;
-  // ...
-}
-```
+- `app/page.tsx` — dashboard views and decision brief.
+- `app/api/ops/route.ts` — authenticated connectors and sample fallback.
+- `app/ops-data.ts` — common schema and normalization logic.
+- `public/mock/*.json` — synthetic Jira, Smartsheet, Sheets, and document data.
+- `scripts/refresh-and-deliver.mjs` — digest generator and Slack delivery.
+- `.github/workflows/monday-ops-digest.yml` — scheduled operating rhythm.
+- `.env.example` — connector configuration contract; contains no secrets.
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Hosting
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+The current private demo is published with ChatGPT Sites. For independent source control, push this repository to GitHub. For the full-stack version, deploy to a host that supports server routes and secret environment variables, such as Cloudflare Workers. GitHub Pages is appropriate only for a static sample-only export because it cannot safely run these authenticated server connectors.
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## Data statement
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+All included people, metrics, risks, budgets, and events are synthetic. The repository contains no NVIDIA data or credentials.

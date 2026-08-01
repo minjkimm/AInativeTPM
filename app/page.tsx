@@ -15,36 +15,36 @@ const pillarOrder = [
 ];
 
 const sourceDetails = [
-  { name: "Jira", owns: "Roadmaps, risks, dependencies", endpoint: "/mock/jira-issues.json", cadence: "Every 30 min", tone: "blue" },
-  { name: "Smartsheet", owns: "Activation calendar and owners", endpoint: "/mock/smartsheet-activations.json", cadence: "Every 15 min", tone: "amber" },
-  { name: "Google Sheets", owns: "Quarter budget and forecast", endpoint: "/mock/google-sheet-budget.json", cadence: "Daily 07:00", tone: "green" },
-  { name: "Documents", owns: "Playbooks, review dates, usage", endpoint: "/mock/playbook-documents.json", cadence: "Daily 07:00", tone: "violet" },
+  { name: "Jira", owns: "Roadmaps, risks, dependencies", endpoint: "Jira REST API v3", cadence: "Every 30 min", tone: "blue" },
+  { name: "Smartsheet", owns: "Activation calendar and owners", endpoint: "Smartsheet Sheets API", cadence: "Every 15 min", tone: "amber" },
+  { name: "Google Sheets", owns: "Quarter budget and forecast", endpoint: "Google Sheets Values API", cadence: "Daily 07:00", tone: "green" },
+  { name: "Documents", owns: "Playbooks, review dates, usage", endpoint: "Google Drive Files API", cadence: "Daily 07:00", tone: "violet" },
 ];
 
 const meetingDecisions = [
   {
     id: "01",
-    question: "Who owns the NIM quickstart fix, and do we pause promotion?",
-    why: "61 developers reproduced one credential/config failure. The live endpoint and starter repository are out of sync.",
-    call: "Assign product engineering today; move 2 Advocacy staff-days to the repair; validate before the next broad activation.",
-    owner: "Maya + Noah",
-    due: "Decision Monday · validate Friday",
+    question: "How do we resolve the August staffing collision?",
+    why: "Three APAC activations need the same two core speakers and lab support within five days. Keeping every date creates delivery risk.",
+    call: "Move one activation by a week; approve backup staff for the other two; update the calendar before invitations go out.",
+    owner: "Amina + Noah",
+    due: "Decision Monday · calendar Tuesday",
   },
   {
     id: "02",
-    question: "Does the Kimi model partner preview proceed on August 7?",
-    why: "Performance is validated, but the external cold-start test and first-14-day support routing are incomplete.",
-    call: "Hold the go/no-go until two independent builds pass and a support owner is named.",
+    question: "Which August launches receive limited review capacity first?",
+    why: "Four launches share one review team, and two readiness packets are incomplete. Treating all four as equal guarantees late approvals.",
+    call: "Prioritize the two with committed external dates; assign a backup reviewer; move the other two gates by one week.",
     owner: "Diego",
-    due: "Gate review Wednesday",
+    due: "Priority call Monday · gates Wednesday",
   },
   {
     id: "03",
-    question: "Can three proven CUDA workshops move to regional delivery?",
-    why: "Three pilots matched core-team quality. Delegation returns four travel days and approximately $11.8K each month.",
-    call: "Approve regional ownership with one rotating expert office hour and a monthly quality check.",
+    question: "How do we bring Community forecast back to plan?",
+    why: "Travel and venue spend now forecasts 9% above the approved quarter budget, while three events are still uncommitted.",
+    call: "Shift two events to regional delivery and cap venue upgrades; keep a 3% contingency until September commitments close.",
     owner: "Amina",
-    due: "Transition plan Thursday",
+    due: "Decision Monday · reforecast Thursday",
   },
 ];
 
@@ -88,6 +88,7 @@ export default function Home() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void refresh(); }, [refresh]);
 
   const summary = useMemo(() => {
@@ -120,7 +121,7 @@ export default function Home() {
           <span>Developer Ecosystem <b>/ Operations</b></span>
         </a>
         <div className="header-meta">
-          <Badge tone="sample">● Sample data · live adapters</Badge>
+          <Badge tone={data?.sources.some((source) => source.mode === "live") ? "healthy" : "sample"}>● {data?.sources.some((source) => source.mode === "live") ? "Connected API data" : "Synthetic data · API-ready"}</Badge>
           <span className="updated">{loading ? "Refreshing…" : refreshedAt ? `Refreshed ${refreshedAt}` : "Not refreshed"}</span>
           <button className="refresh-small" onClick={() => void refresh()} disabled={loading} aria-label="Refresh sample data">↻</button>
         </div>
@@ -161,12 +162,12 @@ export default function Home() {
               <article className="metric-card"><span className="metric-label">Roadmap items</span><strong>{data.totals.jiraItems}</strong><span className="delta critical-text">{data.totals.jiraBlocked} blocked · {data.totals.jiraOverdue} overdue</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
               <article className="metric-card"><span className="metric-label">Operational playbooks</span><strong>{data.totals.totalPlaybooks}</strong><span className="delta warning-text">{data.totals.playbooksNeedingReview} need review</span></article>
-              <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>4/4</strong><span className="delta positive">Sample adapters healthy</span></article>
+              <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>{data.sources.length}/4</strong><span className="delta positive">{data.sources.filter((source) => source.mode === "live").length} live · {data.sources.filter((source) => source.mode !== "live").length} sample</span></article>
             </section>
 
             <section className="lead-read">
               <div><p className="eyebrow">LEADERSHIP READ</p><Badge tone="critical">3 decisions</Badge></div>
-              <p><b>Most work is moving.</b> Monday attention should go to the blocked NIM developer path, the Kimi launch gate, and regional ownership of proven workshops—not a tour of all 47 roadmap items.</p>
+              <p><b>Most work is moving.</b> Monday attention should go to the shared staffing collision, limited readiness-review capacity, and the Community budget variance—not a tour of all 47 roadmap items.</p>
               <button className="text-button" onClick={() => setView("meeting")}>Open decision brief <span>→</span></button>
             </section>
 
@@ -292,9 +293,11 @@ export default function Home() {
             </section>
 
             <section className="source-card-grid">
-              {sourceDetails.map((source) => (
-                <article className={`source-card source-card-${source.tone}`} key={source.name}><div><span className="source-pulse" /> <Badge tone="sample">Sample · live adapter</Badge></div><h2>{source.name}</h2><p>{source.owns}</p><dl><dt>Sample endpoint</dt><dd>{source.endpoint}</dd><dt>Target cadence</dt><dd>{source.cadence}</dd><dt>Last result</dt><dd className="healthy-text">Loaded successfully</dd></dl></article>
-              ))}
+              {sourceDetails.map((source) => {
+                const sourceHealth = data.sources.find((item) => item.name === source.name);
+                const badgeTone = sourceHealth?.mode === "live" ? "healthy" : sourceHealth?.mode === "fallback" ? "watch" : "sample";
+                return <article className={`source-card source-card-${source.tone}`} key={source.name}><div><span className="source-pulse" /> <Badge tone={badgeTone}>{sourceHealth?.mode === "live" ? "Live API" : sourceHealth?.mode === "fallback" ? "Fallback active" : "Synthetic sample"}</Badge></div><h2>{source.name}</h2><p>{source.owns}</p><dl><dt>Connector</dt><dd>{source.endpoint}</dd><dt>Target cadence</dt><dd>{source.cadence}</dd><dt>Last result</dt><dd className="healthy-text">{sourceHealth?.recordCount ?? 0} records · {sourceHealth?.status}</dd></dl></article>;
+              })}
             </section>
 
             <section className="adapter-map panel">
@@ -313,12 +316,23 @@ export default function Home() {
               <ol><li><span>01</span><div><b>Confirm source ownership</b><p>Which system is authoritative for calendar, roadmap, budget, and playbooks?</p></div></li><li><span>02</span><div><b>Use a secure server-side proxy</b><p>Jira and Smartsheet tokens never reach the browser. A published Google Sheet can be read directly if appropriate.</p></div></li><li><span>03</span><div><b>Map only decision fields</b><p>Normalize owner, status, date, risk, reason, next action, and source ID.</p></div></li><li><span>04</span><div><b>Automate the rhythm</b><p>Refresh on schedule, generate the Monday brief, and post exceptions to the team channel.</p></div></li></ol>
             </section>
 
-            <section className="honesty-note"><span>Important</span><p>The current page fetches realistic dummy files through working adapters. It does not connect to NVIDIA systems or contain NVIDIA data. Real token-auth integrations require approved credentials and a server-side function.</p></section>
+            <section className="adapter-map panel">
+              <div className="panel-heading"><div><p className="eyebrow">AUTOMATED DELIVERY PATH</p><h2>Monday output without manual reporting</h2></div><Badge tone="healthy">GitHub-ready</Badge></div>
+              <div className="adapter-flow">
+                <div className="adapter-inputs"><span>Jira REST API</span><span>Smartsheet API</span><span>Google Sheets API</span><span>Drive metadata</span></div>
+                <i>→</i>
+                <div className="adapter-core"><span>Server route</span><code>/api/ops<br />authenticate<br />normalize<br />rank exceptions<br />remove secrets</code></div>
+                <i>→</i>
+                <div className="adapter-outputs"><span>Dashboard refresh</span><span>Monday decision brief</span><span>GitHub Actions schedule</span><span>Slack webhook delivery</span></div>
+              </div>
+            </section>
+
+            <section className="honesty-note"><span>Important</span><p>The server connectors are implemented, but this deployment has no company credentials and therefore uses labeled synthetic files. Adding approved environment variables switches each source to its authenticated API without exposing tokens to the browser.</p></section>
           </div>
         )}
       </section>
 
-      <footer><span>Developer Ecosystem Operations</span><span>Prototype v0.3 · Synthetic source data</span><span>Calendar · budget · roadmaps · playbooks</span></footer>
+      <footer><span>Developer Ecosystem Operations</span><span>Prototype v0.4 · API connectors + safe fallback</span><span>Calendar · budget · risks · delivery</span></footer>
     </main>
   );
 }

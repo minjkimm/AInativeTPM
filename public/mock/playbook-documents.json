@@ -3,11 +3,11 @@
   "totalDocuments": 38,
   "documentsNeedingReview": 11,
   "documents": [
-    { "id": "doc-01", "title": "Regional CUDA Workshop Playbook", "pillar": "Community", "owner": "Amina Diallo", "status": "Current", "lastReviewed": "2026-07-20", "nextReview": "2026-10-20", "useCount90d": 12 },
-    { "id": "doc-02", "title": "NIM Quickstart Content Standard", "pillar": "Developer Advocacy", "owner": "Noah Williams", "status": "Needs Update", "lastReviewed": "2026-04-11", "nextReview": "2026-08-05", "useCount90d": 28 },
-    { "id": "doc-03", "title": "Developer Friction Intake and Triage", "pillar": "Developer / Agent Experience", "owner": "Maya Chen", "status": "Draft", "lastReviewed": "2026-07-26", "nextReview": "2026-08-06", "useCount90d": 4 },
-    { "id": "doc-04", "title": "Open Model Launch Readiness Checklist", "pillar": "Open Models", "owner": "Diego Ruiz", "status": "Needs Update", "lastReviewed": "2026-05-19", "nextReview": "2026-08-04", "useCount90d": 9 },
-    { "id": "doc-05", "title": "CUDA Migration Lab Facilitator Guide", "pillar": "CUDA", "owner": "Priya Nair", "status": "In Review", "lastReviewed": "2026-06-14", "nextReview": "2026-07-30", "useCount90d": 7 },
+    { "id": "doc-01", "title": "Regional Delivery Playbook", "pillar": "Community", "owner": "Amina Diallo", "status": "Current", "lastReviewed": "2026-07-20", "nextReview": "2026-10-20", "useCount90d": 12 },
+    { "id": "doc-02", "title": "Activation Readiness Checklist", "pillar": "Developer Advocacy", "owner": "Noah Williams", "status": "Needs Update", "lastReviewed": "2026-04-11", "nextReview": "2026-08-05", "useCount90d": 28 },
+    { "id": "doc-03", "title": "Cross-Pillar Risk Intake and Triage", "pillar": "Developer / Agent Experience", "owner": "Maya Chen", "status": "Draft", "lastReviewed": "2026-07-26", "nextReview": "2026-08-06", "useCount90d": 4 },
+    { "id": "doc-04", "title": "Program Launch Readiness Checklist", "pillar": "Open Models", "owner": "Diego Ruiz", "status": "Needs Update", "lastReviewed": "2026-05-19", "nextReview": "2026-08-04", "useCount90d": 9 },
+    { "id": "doc-05", "title": "Technical Review and Approval Guide", "pillar": "CUDA", "owner": "Priya Nair", "status": "In Review", "lastReviewed": "2026-06-14", "nextReview": "2026-07-30", "useCount90d": 7 },
     { "id": "doc-06", "title": "Maintainer Engagement Operating Guide", "pillar": "Open Source Foundations", "owner": "Elena Park", "status": "Current", "lastReviewed": "2026-07-08", "nextReview": "2026-10-08", "useCount90d": 5 }
   ]
 }

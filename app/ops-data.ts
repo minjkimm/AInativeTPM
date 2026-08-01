@@ -1,4 +1,16 @@
+/* External API payloads are intentionally decoded at the connector boundary. */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type SourceName = "Jira" | "Smartsheet" | "Google Sheets" | "Documents";
+
+export type SourceMode = "live" | "sample" | "fallback";
+
+export type SourceHealth = {
+  name: SourceName;
+  mode: SourceMode;
+  status: string;
+  recordCount: number;
+  refreshedAt: string;
+};
 
 export type AttentionItem = {
   id: string;
@@ -52,6 +64,7 @@ export type OpsData = {
   activations: Activation[];
   budgets: BudgetRow[];
   playbooks: Playbook[];
+  sources: SourceHealth[];
   totals: {
     jiraItems: number;
     jiraBlocked: number;
@@ -66,12 +79,12 @@ type JiraFields = {
   summary: string;
   status: { name: string };
   priority: { name: string };
-  assignee: { displayName: string };
-  duedate: string;
+  assignee: { displayName: string } | null;
+  duedate: string | null;
   labels: string[];
-  customfield_pillar: string;
-  customfield_decision: string;
-  customfield_reason: string;
+  customfield_pillar?: string;
+  customfield_decision?: string;
+  customfield_reason?: string;
 };
 
 function severityFromJira(fields: JiraFields): AttentionItem["severity"] {
@@ -80,23 +93,13 @@ function severityFromJira(fields: JiraFields): AttentionItem["severity"] {
   return "Review";
 }
 
-export async function loadOpsData(): Promise<OpsData> {
-  const [jiraResponse, smartsheetResponse, budgetResponse, docsResponse] = await Promise.all([
-    fetch("/mock/jira-issues.json", { cache: "no-store" }),
-    fetch("/mock/smartsheet-activations.json", { cache: "no-store" }),
-    fetch("/mock/google-sheet-budget.json", { cache: "no-store" }),
-    fetch("/mock/playbook-documents.json", { cache: "no-store" }),
-  ]);
-
-  if (![jiraResponse, smartsheetResponse, budgetResponse, docsResponse].every((response) => response.ok)) {
-    throw new Error("One or more sample sources could not be loaded.");
-  }
-
-  const jira = await jiraResponse.json();
-  const sheet = await smartsheetResponse.json();
-  const budgetSheet = await budgetResponse.json();
-  const docs = await docsResponse.json();
-
+export function normalizeOpsPayload(
+  jira: any,
+  sheet: any,
+  budgetSheet: any,
+  docs: any,
+  sources: SourceHealth[],
+): OpsData {
   const columnTitles = new Map<number, string>(sheet.columns.map((column: { id: number; title: string }) => [column.id, column.title]));
   const activations: Activation[] = sheet.rows.map((row: { id: number; cells: Array<{ columnId: number; value: string | number }> }) => {
     const values = Object.fromEntries(row.cells.map((cell) => [columnTitles.get(cell.columnId), cell.value]));
@@ -134,12 +137,12 @@ export async function loadOpsData(): Promise<OpsData> {
     .map((issue: { key: string; fields: JiraFields }) => ({
       id: issue.key,
       source: "Jira" as const,
-      pillar: issue.fields.customfield_pillar,
+      pillar: issue.fields.customfield_pillar || "Cross-pillar",
       title: issue.fields.summary,
-      reason: issue.fields.customfield_reason,
-      nextAction: issue.fields.customfield_decision,
-      owner: issue.fields.assignee.displayName,
-      due: issue.fields.duedate,
+      reason: issue.fields.customfield_reason || `${issue.fields.status.name} · ${issue.fields.priority.name} priority`,
+      nextAction: issue.fields.customfield_decision || "Confirm owner and resolution date",
+      owner: issue.fields.assignee?.displayName || "Unassigned",
+      due: issue.fields.duedate || "2026-08-10",
       severity: severityFromJira(issue.fields),
     }));
 
@@ -190,13 +193,20 @@ export async function loadOpsData(): Promise<OpsData> {
     activations,
     budgets,
     playbooks: docs.documents,
+    sources,
     totals: {
       jiraItems: jira.total,
-      jiraBlocked: jira.summary.blocked,
-      jiraOverdue: jira.summary.overdue,
+      jiraBlocked: jira.summary?.blocked ?? jira.issues.filter((issue: { fields: JiraFields }) => issue.fields.status.name === "Blocked").length,
+      jiraOverdue: jira.summary?.overdue ?? 0,
       monthlyActivations: sheet.totalRowCount,
       totalPlaybooks: docs.totalDocuments,
       playbooksNeedingReview: docs.documentsNeedingReview,
     },
   };
+}
+
+export async function loadOpsData(): Promise<OpsData> {
+  const response = await fetch("/api/ops", { cache: "no-store" });
+  if (!response.ok) throw new Error("The operations API could not be loaded.");
+  return response.json();
 }

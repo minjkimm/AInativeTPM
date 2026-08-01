@@ -1,0 +1,23 @@
+name: Monday operations digest
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 8 * * 1"
+      timezone: "America/Los_Angeles"
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate and deliver decision brief
+        env:
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: node scripts/refresh-and-deliver.mjs
