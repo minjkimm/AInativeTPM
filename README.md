@@ -2,6 +2,8 @@
 
 An interview portfolio prototype for an AI-native Technical Program Manager. It turns calendar, risk, budget, and playbook data into an exception queue and a decision-focused Monday operating review.
 
+It also includes an executive copilot. Without credentials, the copilot provides deterministic demo answers from the dashboard. With NVIDIA NIM environment variables configured, it sends the same bounded operating context to Nemotron through the server-side chat endpoint.
+
 The repository is designed to work in two modes:
 
 - **Synthetic mode:** runs immediately with realistic, clearly labeled dummy data.
@@ -27,6 +29,8 @@ flowchart LR
   A --> N[Normalized operating schema]
   N --> UI[Dashboard]
   N --> M[Monday decision brief]
+  N --> C[Executive copilot]
+  C --> NM[NVIDIA Nemotron via NIM]
   M --> GH[GitHub Actions schedule]
   GH --> SL[Slack webhook]
 ```
@@ -61,6 +65,7 @@ Copy `.env.example` to `.env.local` and add only the systems you can access. An 
 | Smartsheet | `SMARTSHEET_TOKEN`, `SMARTSHEET_SHEET_ID` | Smartsheet API 2.0 |
 | Google Sheets | `GOOGLE_SHEET_ID`, `GOOGLE_SHEETS_API_KEY` | Sheets Values API v4 |
 | Google Drive | `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_DRIVE_ACCESS_TOKEN` | Drive Files API v3 |
+| NVIDIA Nemotron | `NVIDIA_NIM_BASE_URL`, `NVIDIA_NIM_API_KEY`, `NVIDIA_NIM_MODEL` | OpenAI-compatible NIM Chat Completions |
 
 For Jira, optional field-ID settings map a company’s custom pillar, decision, and reason fields. For production Google Drive access, replace the short-lived token demo with an approved OAuth or service-account flow.
 
@@ -77,6 +82,7 @@ Without the Slack secret, `npm run digest` prints a preview and sends nothing.
 
 - `app/page.tsx` — dashboard views and decision brief.
 - `app/api/ops/route.ts` — authenticated connectors and sample fallback.
+- `app/api/chat/route.ts` — executive Q&A, grounded context, Nemotron connector, and demo fallback.
 - `app/ops-data.ts` — common schema and normalization logic.
 - `public/mock/*.json` — synthetic Jira, Smartsheet, Sheets, and document data.
 - `scripts/refresh-and-deliver.mjs` — digest generator and Slack delivery.
@@ -85,7 +91,7 @@ Without the Slack secret, `npm run digest` prints a preview and sends nothing.
 
 ## Hosting
 
-The current private demo is published with ChatGPT Sites. For independent source control, push this repository to GitHub. For the full-stack version, deploy to a host that supports server routes and secret environment variables, such as Cloudflare Workers. GitHub Pages is appropriate only for a static sample-only export because it cannot safely run these authenticated server connectors.
+The current demo is published publicly with ChatGPT Sites. For independent source control and deployment, use GitHub plus a host that supports server routes and secret environment variables, such as Cloudflare Workers. GitHub Pages is appropriate only for a static sample-only export because it cannot safely run these authenticated server connectors.
 
 ## Data statement
 

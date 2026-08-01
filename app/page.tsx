@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadOpsData, type AttentionItem, type OpsData } from "./ops-data";
 
-type View = "overview" | "portfolio" | "meeting" | "sources";
+type View = "overview" | "portfolio" | "meeting" | "copilot" | "sources";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  evidence?: string[];
+  mode?: "demo" | "nemotron" | "fallback";
+  model?: string;
+};
 
 const pillarOrder = [
   "Community",
@@ -48,6 +56,13 @@ const meetingDecisions = [
   },
 ];
 
+const suggestedQuestions = [
+  "What are the three decisions executives need to make?",
+  "Where are we over budget?",
+  "Which upcoming activations are at risk?",
+  "Who owns the most urgent follow-up?",
+];
+
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
@@ -73,6 +88,10 @@ export default function Home() {
   const [error, setError] = useState("");
   const [refreshedAt, setRefreshedAt] = useState("");
   const [copied, setCopied] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatError, setChatError] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -113,6 +132,35 @@ export default function Home() {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
+  async function askCopilot(prompt = question) {
+    const nextQuestion = prompt.trim();
+    if (!nextQuestion || chatBusy) return;
+    setChatMessages((current) => [...current, { role: "user", content: nextQuestion }]);
+    setQuestion("");
+    setChatBusy(true);
+    setChatError("");
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: nextQuestion }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "The copilot could not answer.");
+      setChatMessages((current) => [...current, {
+        role: "assistant",
+        content: payload.answer,
+        evidence: payload.evidence,
+        mode: payload.mode,
+        model: payload.model,
+      }]);
+    } catch (chatLoadError) {
+      setChatError(chatLoadError instanceof Error ? chatLoadError.message : "The copilot could not answer.");
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
   return (
     <main>
       <header className="topbar">
@@ -134,16 +182,17 @@ export default function Home() {
             <h1>What needs<br />attention?</h1>
           </div>
           <div className="intro-note">
-            <span className="note-index">V4</span>
+            <span className="note-index">V5</span>
             <p>An operational control tower for the activation calendar, budgets, roadmaps, playbooks, risks, owners, and leadership decisions.</p>
           </div>
         </div>
 
-        <nav className="view-tabs four-tabs" aria-label="Dashboard views">
+        <nav className="view-tabs five-tabs" aria-label="Dashboard views">
           {([
             ["overview", "Overview", "attention first"],
             ["portfolio", "Calendar + budget", "6 pillars"],
             ["meeting", "Monday review", "3 decisions"],
+            ["copilot", "Executive copilot", "ask the data"],
             ["sources", "Data sources", "4 adapters"],
           ] as const).map(([id, label, detail]) => (
             <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)} aria-pressed={view === id}>
@@ -285,6 +334,53 @@ export default function Home() {
           </div>
         )}
 
+        {data && view === "copilot" && (
+          <div className="view-content copilot-view">
+            <section className="copilot-hero">
+              <div>
+                <p className="eyebrow">EXECUTIVE COPILOT · NEMOTRON-READY</p>
+                <h2>Ask the<br />operating data.</h2>
+              </div>
+              <div>
+                <Badge tone="sample">Demo analysis active</Badge>
+                <p>Ask a plain-language question. The copilot answers from the same risks, calendar, budget, owners, and playbooks used by the dashboard.</p>
+              </div>
+            </section>
+
+            <section className="copilot-shell panel">
+              <aside className="copilot-guide">
+                <p className="eyebrow">TRY A QUESTION</p>
+                <div className="prompt-list">
+                  {suggestedQuestions.map((prompt) => <button key={prompt} onClick={() => void askCopilot(prompt)} disabled={chatBusy}>{prompt}<span>→</span></button>)}
+                </div>
+                <div className="copilot-guardrail"><b>What it will not do</b><p>Invent root causes, hide synthetic sources, or make a decision without showing the evidence.</p></div>
+              </aside>
+
+              <div className="copilot-conversation">
+                <div className="chat-log" aria-live="polite">
+                  {chatMessages.length === 0 && <div className="copilot-welcome"><span>N</span><div><b>Ready for the operating review.</b><p>Try “What needs an executive decision?” or choose one of the prepared questions.</p></div></div>}
+                  {chatMessages.map((message, index) => (
+                    <article className={`chat-message chat-${message.role}`} key={`${message.role}-${index}`}>
+                      <div className="chat-role">{message.role === "user" ? "Executive" : "Copilot"}</div>
+                      <p>{message.content}</p>
+                      {message.evidence && message.evidence.length > 0 && <div className="chat-evidence"><b>Evidence</b>{message.evidence.map((item) => <span key={item}>{item}</span>)}</div>}
+                      {message.role === "assistant" && <div className="chat-model"><i className={`mode-dot mode-${message.mode}`} />{message.mode === "nemotron" ? "Nemotron" : message.mode === "fallback" ? "Nemotron fallback" : "Demo analysis"}<span>{message.model}</span></div>}
+                    </article>
+                  ))}
+                  {chatBusy && <div className="chat-thinking"><i /><span>Reviewing the operating data…</span></div>}
+                  {chatError && <div className="chat-error">{chatError}</div>}
+                </div>
+
+                <div className="chat-composer">
+                  <label htmlFor="executive-question">Ask about risk, budget, readiness, owners, or upcoming activations</label>
+                  <div><textarea id="executive-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void askCopilot(); } }} placeholder="What needs my decision this week?" maxLength={600} rows={2} /><button onClick={() => void askCopilot()} disabled={chatBusy || !question.trim()}>Ask <span>→</span></button></div>
+                  <small>Answers are grounded in the current dashboard snapshot. Configure the NVIDIA NIM environment variables to switch from demo analysis to Nemotron.</small>
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
+
         {data && view === "sources" && (
           <div className="view-content sources-view">
             <section className="section-hero source-hero">
@@ -332,7 +428,7 @@ export default function Home() {
         )}
       </section>
 
-      <footer><span>Developer Ecosystem Operations</span><span>Prototype v0.4 · API connectors + safe fallback</span><span>Calendar · budget · risks · delivery</span></footer>
+      <footer><span>Developer Ecosystem Operations</span><span>Prototype v0.5 · Nemotron-ready executive copilot</span><span>Calendar · budget · risks · decisions</span></footer>
     </main>
   );
 }

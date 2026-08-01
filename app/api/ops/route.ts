@@ -138,17 +138,20 @@ async function documentsConnector(): Promise<ConnectorResult> {
   }, (data) => data.documents.length);
 }
 
+export async function getOpsData() {
+  const [jira, smartsheet, budget, documents] = await Promise.all([
+    jiraConnector(),
+    smartsheetConnector(),
+    googleSheetsConnector(),
+    documentsConnector(),
+  ]);
+  const sources = [jira.health, smartsheet.health, budget.health, documents.health];
+  return normalizeOpsPayload(jira.data, smartsheet.data, budget.data, documents.data, sources);
+}
+
 export async function GET() {
   try {
-    const [jira, smartsheet, budget, documents] = await Promise.all([
-      jiraConnector(),
-      smartsheetConnector(),
-      googleSheetsConnector(),
-      documentsConnector(),
-    ]);
-    const sources = [jira.health, smartsheet.health, budget.health, documents.health];
-    const data = normalizeOpsPayload(jira.data, smartsheet.data, budget.data, documents.data, sources);
-    return Response.json(data, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(await getOpsData(), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown operations API error";
     return Response.json({ error: message }, { status: 500 });
