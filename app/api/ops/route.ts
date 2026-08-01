@@ -235,7 +235,7 @@ async function googleSheetsConnector(): Promise<ConnectorResult> {
     );
     const values = [table[0], ...table.slice(1).map((row) => row.map((value, index) => index >= 1 && index <= 4 ? String(numeric(value)) : value))];
     return { range: "FY27 Q3 Budget!A1:H7", majorDimension: "ROWS", values };
-  }, (data) => Math.max((data.values?.length || 1) - 1, 0), "live", useValuesApi ? "Authenticated Google Sheets Values API loaded successfully" : "Connected read-only budget Sheet");
+  }, (data) => Math.max((data.values?.length || 1) - 1, 0), "live", useValuesApi ? "Google Sheets Values API v4 loaded with a restricted server-side API key" : "Connected read-only budget Sheet");
 }
 
 async function documentsConnector(): Promise<ConnectorResult> {
