@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Developer Ecosystem Operations",
-  description: "An honest operating dashboard prototype for activation decisions, weekly action, and quarterly allocation.",
+  description: "A cross-pillar decision system for developer momentum, operational constraints, and evidence-backed resource calls.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
