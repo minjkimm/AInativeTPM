@@ -5,6 +5,7 @@ import jiraSample from "../../../public/mock/jira-issues.json";
 import smartsheetSample from "../../../public/mock/smartsheet-activations.json";
 import budgetSample from "../../../public/mock/google-sheet-budget.json";
 import documentsSample from "../../../public/mock/playbook-documents.json";
+import { syntheticActivationOutcomes } from "../../outcome-sample";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,7 @@ function expandedSmartsheetSample(base: any) {
     };
     return { id: 1200 + index, cells: base.columns.map((column: any) => ({ columnId: column.id, value: values[column.title] ?? "" })) };
   });
-  return { ...base, totalRowCount: 112, rows: [...base.rows, ...generated] };
+  return { ...base, totalRowCount: 112, rows: [...base.rows, ...generated], outcomes: syntheticActivationOutcomes() };
 }
 
 function health(name: SourceName, mode: SourceHealth["mode"], status: string, recordCount: number): SourceHealth {
@@ -243,9 +244,14 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
   return withFallback("Smartsheet", "smartsheet-activations.json", Boolean(useVendorApi || demoSheetId), async () => {
     if (!useVendorApi) {
       const sheetName = process.env.SMARTSHEET_DEMO_SHEET_NAME || "Activation Calendar";
-      const [table, totalTable] = await Promise.all([
+      const [table, totalTable, outcomeTable] = await Promise.all([
         fetchPublicSheet(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_RANGE || "A7:O119"),
         fetchPublicSheetRange(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_TOTAL_RANGE || "B3"),
+        fetchPublicSheet(
+          demoSheetId!,
+          process.env.SMARTSHEET_DEMO_OUTCOME_SHEET_NAME || "Outcome & Learning",
+          process.env.SMARTSHEET_DEMO_OUTCOME_RANGE || "A1:U25",
+        ),
       ]);
       const monthlyTotal = numeric(totalTable[0]?.[0] || "");
       if (monthlyTotal <= 0) throw new Error("Smartsheet bridge monthly total is missing");
@@ -259,7 +265,30 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
         })),
       }));
       if (monthlyTotal !== rows.length) throw new Error(`Smartsheet bridge total ${monthlyTotal} does not match ${rows.length} detailed rows`);
-      return { totalRowCount: monthlyTotal, columns, rows };
+      const outcomes = recordsFromTable(outcomeTable).map((row) => ({
+        id: row["Outcome ID"],
+        activation: row.Activation,
+        completionDate: dateOnly(row["Completion Date"]),
+        originRegion: row["Origin Region"],
+        pillar: row.Pillar,
+        audience: row.Audience,
+        strategicOutcome: row["Strategic Outcome"],
+        successMetric: row["Success Metric"],
+        unit: row.Unit,
+        target: numeric(row.Target),
+        actual: numeric(row.Actual),
+        outcomeStatus: row["Outcome Status"],
+        cost: numeric(row.Cost),
+        costPerOutcome: numeric(row["Cost per Outcome"]),
+        reusableAsset: row["Reusable Asset"],
+        regionsReusing: row["Regions Reusing"].split(",").map((region) => region.trim()).filter(Boolean),
+        learning: row.Learning,
+        recommendation: row.Recommendation,
+        playbook: row.Playbook,
+        owner: row.Owner,
+        synthetic: row.Synthetic === "TRUE",
+      }));
+      return { totalRowCount: monthlyTotal, columns, rows, outcomes };
     }
     const response = await fetch(`https://api.smartsheet.com/2.0/sheets/${sheetId!}`, { headers: { Authorization: `Bearer ${token!}` } });
     if (!response.ok) throw new Error(`Smartsheet returned ${response.status}`);

@@ -1,5 +1,6 @@
 /* External API payloads are intentionally decoded at the connector boundary. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { syntheticActivationOutcomes } from "./outcome-sample";
 export type SourceName = "Jira" | "Smartsheet" | "Google Sheets" | "Documents";
 
 export type SourceMode = "live" | "bridge" | "sample" | "fallback";
@@ -38,6 +39,30 @@ export type Activation = {
   budget: number;
 };
 
+export type ActivationOutcome = {
+  id: string;
+  activation: string;
+  completionDate: string;
+  originRegion: string;
+  pillar: string;
+  audience: string;
+  strategicOutcome: string;
+  successMetric: string;
+  unit: string;
+  target: number;
+  actual: number;
+  outcomeStatus: string;
+  cost: number;
+  costPerOutcome: number;
+  reusableAsset: string;
+  regionsReusing: string[];
+  learning: string;
+  recommendation: string;
+  playbook: string;
+  owner: string;
+  synthetic: boolean;
+};
+
 export type BudgetRow = {
   pillar: string;
   budget: number;
@@ -65,6 +90,7 @@ export type Playbook = {
 export type OpsData = {
   attention: AttentionItem[];
   activations: Activation[];
+  outcomes: ActivationOutcome[];
   budgets: BudgetRow[];
   playbooks: Playbook[];
   sources: SourceHealth[];
@@ -146,6 +172,30 @@ export function normalizeOpsPayload(
     };
   });
 
+  const outcomes: ActivationOutcome[] = (sheet.outcomes || []).map((row: any) => ({
+    id: String(row.id),
+    activation: String(row.activation),
+    completionDate: String(row.completionDate),
+    originRegion: String(row.originRegion),
+    pillar: String(row.pillar),
+    audience: String(row.audience),
+    strategicOutcome: String(row.strategicOutcome),
+    successMetric: String(row.successMetric),
+    unit: String(row.unit),
+    target: numericValue(row.target),
+    actual: numericValue(row.actual),
+    outcomeStatus: String(row.outcomeStatus),
+    cost: numericValue(row.cost),
+    costPerOutcome: numericValue(row.costPerOutcome),
+    reusableAsset: String(row.reusableAsset),
+    regionsReusing: Array.isArray(row.regionsReusing) ? row.regionsReusing : String(row.regionsReusing || "").split(",").map((item) => item.trim()).filter(Boolean),
+    learning: String(row.learning),
+    recommendation: String(row.recommendation),
+    playbook: String(row.playbook),
+    owner: String(row.owner),
+    synthetic: Boolean(row.synthetic),
+  }));
+
   const jiraAttention: AttentionItem[] = jira.issues
     .filter((issue: { fields: JiraFields }) => issue.fields.labels.includes("weekly-review"))
     .map((issue: { key: string; fields: JiraFields }) => ({
@@ -209,6 +259,7 @@ export function normalizeOpsPayload(
   return {
     attention: [...jiraAttention, ...activationAttention, ...budgetAttention, ...documentAttention],
     activations,
+    outcomes,
     budgets,
     playbooks: docs.documents,
     sources,
@@ -251,6 +302,6 @@ export async function loadOpsData(): Promise<OpsData> {
       { name: "Google Sheets", mode: "fallback", status: "Browser fallback active", recordCount: Math.max(budget.values.length - 1, 0), refreshedAt },
       { name: "Documents", mode: "fallback", status: "Browser fallback active", recordCount: documents.documents.length, refreshedAt },
     ];
-    return normalizeOpsPayload(jira, smartsheet, budget, documents, sources);
+    return normalizeOpsPayload(jira, { ...smartsheet, outcomes: syntheticActivationOutcomes() }, budget, documents, sources);
   }
 }

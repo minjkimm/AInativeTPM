@@ -30,6 +30,7 @@ test("server-renders the finished operations dashboard shell", async () => {
   assert.match(html, /<title>Developer Ecosystem Operations<\/title>/i);
   assert.match(html, /What needs/);
   assert.match(html, /Calendar \+ budget/);
+  assert.match(html, /Outcomes \+ handbook/);
   assert.match(html, /Monday review/);
   assert.match(html, /Executive copilot/);
   assert.match(html, /Data sources/);
@@ -48,6 +49,7 @@ test("keeps the production source adapters and removes starter assets", async ()
   assert.match(route, /JIRA_DEMO_SHEET_ID/);
   assert.match(route, /SMARTSHEET_DEMO_SHEET_ID/);
   assert.match(route, /SMARTSHEET_DEMO_TOTAL_RANGE/);
+  assert.match(route, /SMARTSHEET_DEMO_OUTCOME_RANGE/);
   assert.doesNotMatch(route, /SMARTSHEET_DEMO_TOTAL\s*\|\|\s*112/);
   assert.match(route, /GOOGLE_BUDGET_SHEET_ID/);
   assert.match(route, /GOOGLE_ASSET_REGISTER_SHEET_ID/);
@@ -74,5 +76,7 @@ test("normalizes formatted budget currency from source payloads", async () => {
   assert.equal(payload.totals.jiraItems, 47);
   assert.equal(payload.totals.jiraBlocked, 6);
   assert.equal(payload.totals.jiraOverdue, 5);
+  assert.equal(payload.outcomes.length, 24);
+  assert.equal(payload.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded").length, 18);
   assert.equal(payload.budgets[0].recommendation.includes("regional delivery"), true);
 });

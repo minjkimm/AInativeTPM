@@ -1,5 +1,6 @@
 import type { AttentionItem, OpsData } from "../../ops-data";
 import { getOpsData } from "../ops/route";
+import { activationLifecycle, handbookRules } from "../../handbook-data";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,23 @@ function demoAnswer(question: string, data: OpsData) {
   const totalForecast = data.budgets.reduce((sum, row) => sum + row.forecast, 0);
   const atRisk = data.activations.filter((item) => item.status !== "On Track");
   const connectedSources = data.sources.filter((source) => source.mode === "live" || source.mode === "bridge");
+
+  if (/handbook|repeatable|standard process|operating process|create an activation/.test(lower)) {
+    const first = activationLifecycle.slice(0, 4);
+    return {
+      answer: `The activation handbook uses ${activationLifecycle.length} gates from outcome brief through handbook update. Start by naming the intended developer behavior and measure, select a proven pattern, pass the readiness gate, then capture evidence and reusable assets. The completion rule is: ${handbookRules[0]}`,
+      evidence: first.map((step) => `Handbook ${step.id} · ${step.stage} · ${step.timing}`),
+    };
+  }
+
+  if (/outcome|learning|learn|scale|reuse|regional|region|standardize|stop/.test(lower)) {
+    const onTarget = data.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded");
+    const patterns = data.outcomes.filter((item) => (item.recommendation === "Scale" || item.recommendation === "Standardize") && item.regionsReusing.length > 0);
+    return {
+      answer: `${onTarget.length} of ${data.outcomes.length} completed activations met or exceeded their outcome target. ${patterns.length} proven patterns have both a scale-or-standardize recommendation and evidence of regional reuse. The strongest next step is to reuse ${patterns[0]?.reusableAsset || "the highest-performing activation asset"} from ${patterns[0]?.activation || "the top-performing activation"}, while preserving its readiness and measurement gates.`,
+      evidence: patterns.slice(0, 4).map((item) => `${item.id} · ${item.originRegion} → ${item.regionsReusing.join(", ")} · ${item.recommendation}`),
+    };
+  }
 
   if (/budget|spend|forecast|over plan|variance/.test(lower)) {
     const over = data.budgets.filter((row) => row.forecast > row.budget).sort((a, b) => (b.forecast - b.budget) - (a.forecast - a.budget));
@@ -83,8 +101,10 @@ function executiveContext(data: OpsData) {
     sources: data.sources.map(({ name, mode, recordCount }) => ({ name, mode, recordCount })),
     attention: topAttention(data).slice(0, 12),
     activations: data.activations,
+    outcomes: data.outcomes,
     budgets: data.budgets,
     playbooks: data.playbooks,
+    handbook: { lifecycle: activationLifecycle, rules: handbookRules },
   });
 }
 

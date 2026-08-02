@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadOpsData, type AttentionItem, type OpsData } from "./ops-data";
+import { activationLifecycle, handbookRules } from "./handbook-data";
 
-type View = "overview" | "portfolio" | "meeting" | "copilot" | "sources";
+type View = "overview" | "portfolio" | "outcomes" | "meeting" | "copilot" | "sources";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -24,16 +25,17 @@ const pillarOrder = [
 
 const sourceDetails = [
   { name: "Jira", owns: "Roadmaps, risks, dependencies", endpoint: "Jira REST API v3", cadence: "Every 30 min", tone: "blue" },
-  { name: "Smartsheet", owns: "Activation calendar and owners", endpoint: "Smartsheet Sheets API", cadence: "Every 15 min", tone: "amber" },
+  { name: "Smartsheet", owns: "Activation calendar, outcomes, and regional learning", endpoint: "Smartsheet Sheets API", cadence: "Every 15 min", tone: "amber" },
   { name: "Google Sheets", owns: "Quarter budget and forecast", endpoint: "Google Sheets Values API", cadence: "Daily 07:00", tone: "green" },
   { name: "Documents", owns: "Playbooks, review dates, usage", endpoint: "Google Drive Files API", cadence: "Daily 07:00", tone: "violet" },
 ];
 
 const suggestedQuestions = [
   "What decisions do executives need to make?",
+  "Which activation patterns should regions reuse?",
+  "How does the activation handbook work?",
   "Where are we over budget?",
   "Which upcoming activations are at risk?",
-  "Who owns the most urgent follow-up?",
 ];
 
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
@@ -109,6 +111,10 @@ export default function Home() {
     const totalBudget = data.budgets.reduce((sum, row) => sum + row.budget, 0);
     const totalForecast = data.budgets.reduce((sum, row) => sum + row.forecast, 0);
     const totalCommitted = data.budgets.reduce((sum, row) => sum + row.committed, 0);
+    const outcomeOnTarget = data.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded");
+    const reusableAssets = data.outcomes.filter((item) => !item.reusableAsset.toLowerCase().startsWith("no reusable"));
+    const regionalReuse = data.outcomes.filter((item) => item.regionsReusing.length > 0);
+    const outcomePatterns = data.outcomes.filter((item) => (item.recommendation === "Scale" || item.recommendation === "Standardize") && item.regionsReusing.length > 0);
     const sortedAttention = [...data.attention].sort((a, b) => severityRank(a) - severityRank(b) || (a.due || "9999-12-31").localeCompare(b.due || "9999-12-31"));
     const activationRiskCount = data.activations.filter((item) => item.status !== "On Track").length;
     const start = reviewStart(data);
@@ -147,7 +153,7 @@ export default function Home() {
       source: item.source,
       sourceId: item.id,
     }));
-    return { totalBudget, totalForecast, totalCommitted, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
+    return { totalBudget, totalForecast, totalCommitted, outcomeOnTarget, reusableAssets, regionalReuse, outcomePatterns, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
   }, [data]);
 
   async function copyBrief() {
@@ -214,14 +220,15 @@ export default function Home() {
           </div>
           <div className="intro-note">
             <span className="note-index">LIVE</span>
-            <p>An operational control tower for the activation calendar, budgets, roadmaps, playbooks, risks, owners, and leadership decisions.</p>
+            <p>An operational control tower connecting portfolio decisions, activation outcomes, regional learning, budgets, risks, owners, and repeatable playbooks.</p>
           </div>
         </div>
 
-        <nav className="view-tabs five-tabs" aria-label="Dashboard views">
+        <nav className="view-tabs six-tabs" aria-label="Dashboard views">
           {([
             ["overview", "Overview", "attention first"],
             ["portfolio", "Calendar + budget", "cross-pillar"],
+            ["outcomes", "Outcomes + handbook", "learn and reuse"],
             ["meeting", "Monday review", "decision queue"],
             ["copilot", "Executive copilot", "ask the data"],
             ["sources", "Data sources", "source lineage"],
@@ -238,10 +245,11 @@ export default function Home() {
         {data && summary && view === "overview" && (
           <div className="view-content">
             <section className="metric-grid ops-metrics" aria-label="Portfolio summary">
-              <article className="metric-card primary-metric"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} monthly exceptions</span></article>
+              <article className="metric-card primary-metric"><span className="metric-label">Completed outcomes on target</span><strong>{Math.round(summary.outcomeOnTarget.length / Math.max(data.outcomes.length, 1) * 100)}%</strong><span className="delta">{summary.outcomeOnTarget.length} of {data.outcomes.length} met or exceeded</span></article>
+              <article className="metric-card outcome-metric"><span className="metric-label">Regional reuse</span><strong>{summary.regionalReuse.length}</strong><span className="delta positive">completed patterns reused</span></article>
+              <article className="metric-card"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} monthly exceptions</span></article>
               <article className="metric-card"><span className="metric-label">Roadmap items</span><strong>{data.totals.jiraItems}</strong><span className="delta critical-text">{data.totals.jiraBlocked} blocked · {data.totals.jiraOverdue} overdue</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
-              <article className="metric-card"><span className="metric-label">Operational playbooks</span><strong>{data.totals.totalPlaybooks}</strong><span className="delta warning-text">{data.totals.playbooksNeedingReview} need review</span></article>
               <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>{data.sources.length}</strong><span className="delta positive">{data.sources.filter((source) => isConnectedSource(source.mode)).length} connected · {data.sources.filter((source) => !isConnectedSource(source.mode)).length} sample</span></article>
             </section>
 
@@ -337,6 +345,67 @@ export default function Home() {
           </div>
         )}
 
+        {data && summary && view === "outcomes" && (
+          <div className="view-content outcomes-view">
+            <section className="section-hero outcome-hero">
+              <div><p className="eyebrow">SENSE → DECIDE → LEARN</p><h2>Turn activations<br />into operating knowledge.</h2></div>
+              <p>The outcome register separates activity from impact. Every completed activation records the target, actual result, cost, reusable asset, regional learning, and a recommendation to scale, standardize, adjust, or stop.</p>
+            </section>
+
+            <section className="outcome-score-grid" aria-label="Activation outcome summary">
+              <article><span>Completed activations</span><strong>{data.outcomes.length}</strong><small>June–July evidence set</small></article>
+              <article><span>Met or exceeded target</span><strong>{summary.outcomeOnTarget.length}</strong><small>{Math.round(summary.outcomeOnTarget.length / Math.max(data.outcomes.length, 1) * 100)}% outcome rate</small></article>
+              <article><span>Reusable assets produced</span><strong>{summary.reusableAssets.length}</strong><small>kits, guides, rubrics, and runbooks</small></article>
+              <article><span>Cross-region reuse</span><strong>{summary.regionalReuse.length}</strong><small>{summary.outcomePatterns.length} proven scale or standardize patterns</small></article>
+            </section>
+
+            <section className="panel pillar-outcomes">
+              <div className="panel-heading"><div><p className="eyebrow">OUTCOME PORTFOLIO</p><h2>Evidence by operating pillar</h2></div><Badge tone="healthy">Source-backed</Badge></div>
+              <div className="pillar-outcome-row pillar-outcome-head"><span>Pillar</span><span>On target</span><span>Cost / outcome</span><span>Regional reuse</span><span>Portfolio call</span></div>
+              {pillarOrder.map((pillar) => {
+                const outcomes = data.outcomes.filter((item) => item.pillar === pillar);
+                const onTarget = outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded").length;
+                const averageCost = outcomes.reduce((sum, item) => sum + item.costPerOutcome, 0) / Math.max(outcomes.length, 1);
+                const reused = outcomes.filter((item) => item.regionsReusing.length > 0).length;
+                const calls = outcomes.reduce<Record<string, number>>((counts, item) => ({ ...counts, [item.recommendation]: (counts[item.recommendation] || 0) + 1 }), {});
+                const call = Object.entries(calls).sort((a, b) => b[1] - a[1])[0]?.[0] || "Review";
+                return <div className="pillar-outcome-row" key={pillar}><b>{pillar}</b><span>{onTarget} / {outcomes.length}</span><span>{money(averageCost)}</span><span>{reused} patterns</span><Badge tone={call === "Stop" ? "critical" : call === "Adjust" ? "watch" : "healthy"}>{call}</Badge></div>;
+              })}
+            </section>
+
+            <section className="panel pattern-library">
+              <div className="panel-heading"><div><p className="eyebrow">REGIONAL LEARNING EXCHANGE</p><h2>Proven patterns another region can act on</h2></div><p className="heading-note">One pattern per pillar</p></div>
+              <div className="pattern-grid">
+                {pillarOrder.map((pillar) => data.outcomes.find((item) => item.pillar === pillar && (item.recommendation === "Scale" || item.recommendation === "Standardize") && item.regionsReusing.length > 0)).filter((item): item is OpsData["outcomes"][number] => Boolean(item)).map((item) => (
+                  <article key={item.id}>
+                    <div><Badge tone="healthy">{item.recommendation}</Badge><span>{item.id}</span></div>
+                    <h3>{item.activation}</h3>
+                    <p>{item.learning}</p>
+                    <dl><dt>Proof</dt><dd>{item.actual} {item.unit} vs {item.target} target</dd><dt>Reusable asset</dt><dd>{item.reusableAsset}</dd><dt>Regional path</dt><dd>{item.originRegion} → {item.regionsReusing.join(", ")}</dd><dt>Standard</dt><dd>{item.playbook}</dd></dl>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="handbook-shell">
+              <div className="handbook-intro"><p className="eyebrow">LIVING ACTIVATION HANDBOOK</p><h2>Repeat the quality.<br />Localize the delivery.</h2><p>The handbook defines the common gates every region follows. Outcome evidence decides which formats enter the pattern library and what changes next.</p></div>
+              <div className="lifecycle-list">
+                {activationLifecycle.map((step) => <article key={step.id}><span>{step.id}</span><div><small>{step.timing}</small><h3>{step.stage}</h3><p>{step.practice}</p></div></article>)}
+              </div>
+            </section>
+
+            <section className="handbook-rules panel">
+              <div><p className="eyebrow">NON-NEGOTIABLES</p><h2>Rules that make learning portable</h2></div>
+              <ol>{handbookRules.map((rule, index) => <li key={rule}><span>{String(index + 1).padStart(2, "0")}</span><p>{rule}</p></li>)}</ol>
+            </section>
+
+            <section className="playbook-library panel">
+              <div className="panel-heading"><div><p className="eyebrow">APPROVED OPERATING ASSETS</p><h2>Playbooks connected to the activation lifecycle</h2></div><Badge tone="neutral">{data.totals.totalPlaybooks} total · {data.playbooks.length} shown</Badge></div>
+              <div>{data.playbooks.map((playbook) => <article key={playbook.id}><div><b>{playbook.title}</b><small>{playbook.pillar}</small></div><span>{playbook.useCount90d} uses / 90d</span><Badge tone={playbook.status === "Current" ? "healthy" : playbook.status === "Needs Update" ? "critical" : "watch"}>{playbook.status}</Badge><small>Next review {shortDate(playbook.nextReview)}</small></article>)}</div>
+            </section>
+          </div>
+        )}
+
         {data && summary && view === "meeting" && (
           <div className="view-content meeting-view">
             <section className="section-hero meeting-hero">
@@ -374,7 +443,7 @@ export default function Home() {
               </div>
               <div>
                 <Badge tone="healthy">Grounded in current source snapshot</Badge>
-                <p>Ask a plain-language question. The copilot answers from the same risks, calendar, budget, owners, and playbooks used by the dashboard.</p>
+                <p>Ask a plain-language question. The copilot answers from the same risks, outcomes, regional learnings, calendar, budget, owners, and handbook used by the dashboard.</p>
               </div>
             </section>
 
@@ -403,7 +472,7 @@ export default function Home() {
                 </div>
 
                 <div className="chat-composer">
-                  <label htmlFor="executive-question">Ask about risk, budget, readiness, owners, or upcoming activations</label>
+                  <label htmlFor="executive-question">Ask about outcomes, reusable patterns, risk, budget, readiness, owners, or upcoming activations</label>
                   <div><textarea id="executive-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void askCopilot(); } }} placeholder="What needs my decision this week?" maxLength={600} rows={2} /><button onClick={() => void askCopilot()} disabled={chatBusy || !question.trim()}>Ask <span>→</span></button></div>
                   <small>Answers are grounded in the current dashboard snapshot. The response labels whether Nemotron or the deterministic fallback produced it.</small>
                 </div>
@@ -460,7 +529,7 @@ export default function Home() {
         )}
       </section>
 
-      <footer><span>Developer Ecosystem Operations</span><span>Source-backed operating data · Nemotron-ready</span><span>Calendar · budget · risks · decisions</span></footer>
+      <footer><span>Developer Ecosystem Operations</span><span>Source-backed operating data · Nemotron-ready</span><span>Outcomes · learning · decisions · repeatable practice</span></footer>
     </main>
   );
 }
