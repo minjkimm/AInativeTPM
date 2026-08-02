@@ -166,12 +166,16 @@ export default function Home() {
     const adjustOutcomes = data.outcomes.filter((item) => item.recommendation === "Adjust");
     const scaleOutcomes = data.outcomes.filter((item) => item.recommendation === "Scale");
     const standardizeOutcomes = data.outcomes.filter((item) => item.recommendation === "Standardize");
+    const adjustmentCalls: Record<string, string> = {
+      "OUT-004": "Approve another preview only after the Program Launch Readiness Checklist requires a named follow-up owner for every partner evaluation before the session closes.",
+      "OUT-010": "Approve the next cohort only after the Program Launch Readiness Checklist requires every account team to submit the same evaluation worksheet with a named partner next step before cohort close.",
+    };
     const meetingOutcomes = [...stopOutcomes, ...adjustOutcomes.slice(0, 2), ...scaleOutcomes.slice(0, 1)].map((item) => ({
       ...item,
       preparedCall: item.recommendation === "Stop"
         ? `Do not repeat this format. ${item.learning}`
         : item.recommendation === "Adjust"
-          ? `Run the next cohort only after this change: ${item.learning}`
+          ? adjustmentCalls[item.id] || `Approve the next cohort only after ${item.playbook} is updated with this requirement: ${item.learning}`
           : item.recommendation === "Scale"
             ? `Approve reuse in ${item.regionsReusing.join(", ") || "one additional region"} using ${item.reusableAsset}.`
             : `Make ${item.reusableAsset} the default asset in ${item.playbook}.`,
@@ -429,7 +433,7 @@ export default function Home() {
                     <div className="outcome-call"><Badge tone={item.recommendation === "Stop" ? "critical" : item.recommendation === "Adjust" ? "watch" : "healthy"}>{item.recommendation === "Stop" ? "Do not repeat" : item.recommendation === "Adjust" ? "Fix first" : "Expand"}</Badge><small>{item.id}</small></div>
                     <div className="outcome-subject"><h3>{item.activation}</h3><p>{item.pillar} · {item.originRegion} · {item.owner}</p><small>{item.strategicOutcome}</small></div>
                     <div className="outcome-proof"><span>{item.successMetric}</span><b>{item.actual} <small>actual</small> / {item.target} <small>required</small></b><p>{money(item.cost)} delivery cost</p></div>
-                    <div className="outcome-action"><span>Prepared call</span><p>{item.preparedCall}</p><small>System update: {item.playbook}</small></div>
+                    <div className="outcome-action"><span>Decision proposed</span><p>{item.preparedCall}</p><small>Playbook to update: {item.playbook}</small></div>
                   </article>
                 ))}
               </div>

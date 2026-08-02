@@ -60,6 +60,8 @@ test("keeps the production source adapters and removes starter assets", async ()
   assert.match(page, /Where should GPU seeding change/);
   assert.match(page, /View source data/);
   assert.match(page, /What do we repeat/);
+  assert.match(page, /requires every account team to submit the same evaluation worksheet/);
+  assert.doesNotMatch(page, /only after this change/);
   assert.doesNotMatch(page, /Met or exceeded target/);
   assert.match(layout, /title:\s*"Developer Ecosystem Operations"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
