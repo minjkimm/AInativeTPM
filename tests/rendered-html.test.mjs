@@ -57,7 +57,8 @@ test("keeps the production source adapters and removes starter assets", async ()
   assert.match(route, /Connected synthetic Jira feed/);
   assert.match(route, /Authenticated Jira REST API/);
   assert.match(page, /Connected demo feed/);
-  assert.match(page, /GPU seeding decisions/);
+  assert.match(page, /Where should GPU seeding change/);
+  assert.match(page, /View source data/);
   assert.match(layout, /title:\s*"Developer Ecosystem Operations"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)));

@@ -39,6 +39,8 @@ const suggestedQuestions = [
   "Which upcoming activations are at risk?",
 ];
 
+const gpuEvidenceUrl = "https://docs.google.com/spreadsheets/d/1Vym0mUmg24zZeFVkjL10cxS4RQRN8a2wy2L5dmIYBr0/edit#gid=97742788";
+
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
@@ -111,7 +113,6 @@ export default function Home() {
     if (!data) return null;
     const totalBudget = data.budgets.reduce((sum, row) => sum + row.budget, 0);
     const totalForecast = data.budgets.reduce((sum, row) => sum + row.forecast, 0);
-    const totalCommitted = data.budgets.reduce((sum, row) => sum + row.committed, 0);
     const gpuSeedBudget = data.budgets.reduce((sum, row) => sum + row.gpuSeedBudget, 0);
     const gpuSeedForecast = data.budgets.reduce((sum, row) => sum + row.gpuSeedForecast, 0);
     const completedSeeds = data.gpuSeeds.filter((seed) => seed.lifecycleStatus === "Completed");
@@ -147,6 +148,25 @@ export default function Home() {
         reason: pipeline[0]?.decisionReason || history[0]?.decisionReason || "No linked evidence",
       };
     });
+    const buildGpuDecisionGroup = (decision: string, rows: typeof gpuByPillar, rationale: string) => ({
+      decision,
+      pillars: rows.map((row) => row.pillar),
+      utilizationLow: rows.length ? Math.min(...rows.map((row) => row.utilization)) : 0,
+      utilizationHigh: rows.length ? Math.max(...rows.map((row) => row.utilization)) : 0,
+      capacityGap: rows.reduce((sum, row) => sum + row.requestedNext - row.grantedNext, 0),
+      prototypes: rows.reduce((sum, row) => sum + row.prototypes, 0),
+      productionPilots: rows.reduce((sum, row) => sum + row.productionPilots, 0),
+      seedBudget: rows.reduce((sum, row) => sum + row.seedBudget, 0),
+      seedForecast: rows.reduce((sum, row) => sum + row.seedForecast, 0),
+      rationale,
+    });
+    const pipelineGpuRows = gpuByPillar.filter((row) => row.requestedNext > 0);
+    const gpuDecisionGroups = [
+      buildGpuDecisionGroup("Increase", pipelineGpuRows.filter((row) => row.recommendation === "Increase"), "Strong prior use and technical conversion; Q3 demand exceeds provisional supply."),
+      buildGpuDecisionGroup("Optimize first", pipelineGpuRows.filter((row) => row.recommendation === "Optimize"), "Demand exists, but setup time or support intensity should improve before adding supply."),
+      buildGpuDecisionGroup("Hold for evidence", pipelineGpuRows.filter((row) => row.recommendation === "Hold"), "Keep provisional capacity until the next cohort confirms conversion and follow-on demand."),
+      buildGpuDecisionGroup("No Q3 request", gpuByPillar.filter((row) => row.requestedNext === 0), "No pipeline request is recorded, so there is no new allocation decision this cycle."),
+    ].filter((group) => group.pillars.length > 0);
     const outcomeOnTarget = data.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded");
     const reusableAssets = data.outcomes.filter((item) => !item.reusableAsset.toLowerCase().startsWith("no reusable"));
     const regionalReuse = data.outcomes.filter((item) => item.regionsReusing.length > 0);
@@ -164,7 +184,7 @@ export default function Home() {
         return date >= start && date <= end;
       })
       .sort((a, b) => activationRank(a.status) - activationRank(b.status) || a.date.localeCompare(b.date))
-      .slice(0, 12);
+      .slice(0, 8);
     const seedDecision = sortedAttention.find((item) => item.tags.includes("gpu-seeding"));
     const readinessDecision = sortedAttention.find((item) => item.source === "Jira" && item.tags.includes("readiness"));
     const budgetDecision = sortedAttention
@@ -189,7 +209,7 @@ export default function Home() {
       source: item.source,
       sourceId: item.id,
     }));
-    return { totalBudget, totalForecast, totalCommitted, gpuSeedBudget, gpuSeedForecast, completedSeeds, pipelineSeeds, historicalUtilization, pipelineRequested, pipelineGranted, prototypes, productionPilots, followOnRequests, gpuByPillar, outcomeOnTarget, reusableAssets, regionalReuse, outcomePatterns, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
+    return { totalBudget, totalForecast, gpuSeedBudget, gpuSeedForecast, completedSeeds, pipelineSeeds, historicalUtilization, pipelineRequested, pipelineGranted, prototypes, productionPilots, followOnRequests, gpuByPillar, gpuDecisionGroups, outcomeOnTarget, reusableAssets, regionalReuse, outcomePatterns, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
   }, [data]);
 
   async function copyBrief() {
@@ -285,13 +305,12 @@ export default function Home() {
 
         {data && summary && view === "overview" && (
           <div className="view-content">
-            <section className="metric-grid ops-metrics" aria-label="Portfolio summary">
+            <section className="metric-grid ops-metrics executive-metrics" aria-label="Portfolio summary">
               <article className="metric-card primary-metric"><span className="metric-label">Completed outcomes on target</span><strong>{Math.round(summary.outcomeOnTarget.length / Math.max(data.outcomes.length, 1) * 100)}%</strong><span className="delta">{summary.outcomeOnTarget.length} of {data.outcomes.length} met or exceeded</span></article>
-              <article className="metric-card outcome-metric"><span className="metric-label">Regional reuse</span><strong>{summary.regionalReuse.length}</strong><span className="delta positive">completed patterns reused</span></article>
               <article className="metric-card"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} monthly exceptions</span></article>
-              <article className="metric-card"><span className="metric-label">Roadmap items</span><strong>{data.totals.jiraItems}</strong><span className="delta critical-text">{data.totals.jiraBlocked} blocked · {data.totals.jiraOverdue} overdue</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
               <article className="metric-card seed-metric"><span className="metric-label">GPU seeding forecast</span><strong>{money(summary.gpuSeedForecast)}</strong><span className={`delta ${summary.gpuSeedForecast > summary.gpuSeedBudget ? "critical-text" : "positive"}`}>{money(summary.gpuSeedForecast - summary.gpuSeedBudget)} vs plan · {Math.round(summary.historicalUtilization * 100)}% prior utilization</span></article>
+              <article className="metric-card outcome-metric"><span className="metric-label">Decisions ready</span><strong>{summary.decisionItems.length}</strong><span className="delta positive">recommendation, owner, and evidence</span></article>
             </section>
 
             <section className="lead-read">
@@ -302,12 +321,12 @@ export default function Home() {
 
             <section className="attention-panel panel">
               <div className="panel-heading">
-                <div><p className="eyebrow">ONE QUEUE FROM FOUR SYSTEMS</p><h2>What needs attention now</h2></div>
-                <Badge tone="neutral">{data.attention.length} open signals</Badge>
+                <div><p className="eyebrow">RANKED EXCEPTIONS</p><h2>What needs attention now</h2></div>
+                <Badge tone="neutral">Top 5 of {data.attention.length}</Badge>
               </div>
               <div className="attention-table" role="table" aria-label="Items requiring attention">
                 <div className="attention-row attention-head" role="row"><span>Urgency</span><span>Item</span><span>Why it matters</span><span>Owner / due</span><span>Source</span></div>
-                {summary.sortedAttention.slice(0, 8).map((item) => (
+                {summary.sortedAttention.slice(0, 5).map((item) => (
                   <div className="attention-row" role="row" key={`${item.source}-${item.id}`}>
                     <div><Badge tone={item.severity.toLowerCase()}>{item.severity}</Badge></div>
                     <div><b>{item.title}</b><small>{item.pillar}</small></div>
@@ -319,20 +338,6 @@ export default function Home() {
               </div>
             </section>
 
-            <section className="flow-strip">
-              <div className="flow-source"><span>Jira</span><small>roadmaps + blockers</small></div>
-              <div className="flow-source"><span>Smartsheet</span><small>activations + GPU evidence</small></div>
-              <div className="flow-source"><span>Google Sheets</span><small>budget + seed envelope</small></div>
-              <div className="flow-source"><span>Documents</span><small>playbooks + reviews</small></div>
-              <i>→</i>
-              <div className="flow-output"><b>Normalized attention queue</b><small>Dashboard · Monday brief · weekly digest</small></div>
-            </section>
-
-            <section className="breakpoint-note">
-              <span>Plain-language definition</span>
-              <div><h2>What is a breakpoint?</h2><p>It is the point where incoming work consistently exceeds the team&apos;s capacity, so the backlog and waiting time begin to grow.</p></div>
-              <p><b>For this role:</b> first measure request volume, cycle time, and queue age. Forecasting a breakpoint comes later; it is not the main dashboard.</p>
-            </section>
           </div>
         )}
 
@@ -364,7 +369,7 @@ export default function Home() {
                   return <div className="budget-row" key={row.pillar}>
                     <div><b>{row.pillar}</b><small>{row.owner}</small></div>
                     <div className="budget-bar"><i style={{ width: `${Math.min(actualPercent, 100)}%` }} /><em style={{ left: `${Math.min(forecastPercent, 100)}%` }} /></div>
-                    <span>Actual {money(row.actual)}</span><span>Forecast {forecastPercent}%</span><Badge tone={row.status === "On Track" ? "healthy" : "watch"}>{row.status}</Badge><p>{row.note}<small>GPU seeding: {money(row.gpuSeedForecast)} forecast / {money(row.gpuSeedBudget)} plan</small></p>
+                    <span>Actual {money(row.actual)}</span><span>Forecast {forecastPercent}%</span><Badge tone={row.status === "On Track" ? "healthy" : "watch"}>{row.status}</Badge>
                   </div>;
                 })}
               </div>
@@ -372,42 +377,28 @@ export default function Home() {
             </section>
 
             <section className="panel seed-panel">
-              <div className="panel-heading"><div><p className="eyebrow">ACTIVATION-LINKED INVESTMENT</p><h2>GPU seeding decisions</h2></div><Badge tone={summary.gpuSeedForecast > summary.gpuSeedBudget ? "watch" : "healthy"}>{money(summary.gpuSeedForecast)} forecast</Badge></div>
-              <p className="seed-explainer">Seeding is treated as an activation investment: demand and cost are joined to utilization, prototypes, production pilots, and follow-on requests. That lets leaders increase capacity where technical conversion is strong and optimize or redirect it where capacity was underused.</p>
+              <div className="panel-heading seed-heading"><div><p className="eyebrow">ACTIVATION-LINKED INVESTMENT</p><h2>Where should GPU seeding change?</h2></div><a className="evidence-link" href={gpuEvidenceUrl} target="_blank" rel="noreferrer">View source data ↗</a></div>
+              <div className="seed-basis" aria-label="GPU seeding decision basis">
+                <b>Decision basis</b><span><i>1</i> Demand gap</span><span><i>2</i> Prior utilization</span><span><i>3</i> Prototypes and pilots</span>
+              </div>
               <div className="seed-summary-grid">
                 <article><span>Seed forecast vs plan</span><strong>{money(summary.gpuSeedForecast)}</strong><small>{money(summary.gpuSeedBudget)} approved · {money(summary.gpuSeedForecast - summary.gpuSeedBudget)} variance</small></article>
                 <article><span>Historical utilization</span><strong>{Math.round(summary.historicalUtilization * 100)}%</strong><small>{summary.completedSeeds.length} completed activation cohorts</small></article>
                 <article><span>Technical conversion</span><strong>{summary.prototypes}</strong><small>{summary.productionPilots} production pilots · {summary.followOnRequests} follow-on requests</small></article>
                 <article><span>Q3 capacity gap</span><strong>{(summary.pipelineRequested - summary.pipelineGranted).toLocaleString()}</strong><small>{summary.pipelineRequested.toLocaleString()} requested vs {summary.pipelineGranted.toLocaleString()} provisional GPU hours</small></article>
               </div>
-              <div className="seed-table" role="table" aria-label="GPU seeding decisions by pillar">
-                <div className="seed-row seed-head" role="row"><span>Pillar</span><span>Prior utilization</span><span>Q3 request / grant</span><span>Technical proof</span><span>Seed forecast</span><span>Decision</span></div>
-                {summary.gpuByPillar.map((row) => (
-                  <div className="seed-row" role="row" key={row.pillar}>
-                    <div><b>{row.pillar}</b><small>{row.reason}</small></div>
-                    <strong>{Math.round(row.utilization * 100)}%</strong>
-                    <span>{row.requestedNext.toLocaleString()} / {row.grantedNext.toLocaleString()} hrs</span>
-                    <span>{row.prototypes} prototypes · {row.productionPilots} pilots</span>
-                    <span>{money(row.seedForecast)} <small>vs {money(row.seedBudget)} plan</small></span>
-                    <Badge tone={row.recommendation === "Increase" ? "healthy" : row.recommendation === "Optimize" ? "watch" : "neutral"}>{row.recommendation}</Badge>
-                  </div>
+              <div className="seed-decision-list">
+                {summary.gpuDecisionGroups.map((group) => (
+                  <article key={group.decision}>
+                    <Badge tone={group.decision === "Increase" ? "healthy" : group.decision === "Optimize first" ? "watch" : "neutral"}>{group.decision}</Badge>
+                    <div><h3>{group.pillars.join(" · ")}</h3><p>{group.rationale}</p></div>
+                    {group.decision !== "No Q3 request" ? <div className="seed-proof"><b>{Math.round(group.utilizationLow * 100)}–{Math.round(group.utilizationHigh * 100)}%</b><span>prior use</span><b>{group.prototypes}</b><span>prototypes</span><b>{group.capacityGap.toLocaleString()}</b><span>hour gap</span></div> : <span className="seed-no-action">No spend change proposed</span>}
+                  </article>
                 ))}
               </div>
-              <div className="seed-method"><b>Decision rule:</b> Increase when qualified demand exceeds supply and prior cohorts convert capacity into prototypes or pilots. Optimize when demand exists but setup time, utilization, or support cost weakens conversion. Hold or redirect when evidence is incomplete or capacity remains idle.</div>
+              <div className="seed-method"><span><b>Increase</b> when all three signals support expansion.</span><span><b>Optimize</b> when demand exists but delivery efficiency is weak.</span><span><b>Hold</b> when outcome evidence is incomplete.</span></div>
             </section>
 
-            <section className="panel workstream-panel">
-              <div className="panel-heading"><div><p className="eyebrow">CROSS-SYSTEM ROLLUP</p><h2>Workstream health</h2></div><p className="heading-note">No blended org score</p></div>
-              <div className="workstream-grid">
-                {pillarOrder.map((pillar) => {
-                  const budget = data.budgets.find((row) => row.pillar === pillar);
-                  const risks = data.attention.filter((item) => item.pillar === pillar).length;
-                  const activations = data.activations.filter((item) => item.pillar === pillar).length;
-                  const docs = data.playbooks.filter((item) => item.pillar === pillar && item.status !== "Current").length;
-                  return <article key={pillar}><div><b>{pillar}</b><Badge tone={risks >= 3 ? "critical" : risks >= 1 ? "watch" : "healthy"}>{risks >= 3 ? "Needs attention" : risks >= 1 ? "Watch" : "On track"}</Badge></div><dl><dt>Open signals</dt><dd>{risks}</dd><dt>Upcoming activations</dt><dd>{activations}</dd><dt>Docs to update</dt><dd>{docs}</dd><dt>Budget forecast</dt><dd>{budget ? `${Math.round(budget.forecast / budget.budget * 100)}%` : "—"}</dd></dl></article>;
-                })}
-              </div>
-            </section>
           </div>
         )}
 
