@@ -2,8 +2,8 @@
   "expand": "schema,names",
   "startAt": 0,
   "maxResults": 12,
-  "total": 47,
-  "summary": { "blocked": 6, "overdue": 5 },
+  "total": 8,
+  "summary": { "blocked": 1, "overdue": 1 },
   "issues": [
     {
       "id": "10001",

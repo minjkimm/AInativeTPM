@@ -29,35 +29,8 @@ const sourceDetails = [
   { name: "Documents", owns: "Playbooks, review dates, usage", endpoint: "Google Drive Files API", cadence: "Daily 07:00", tone: "violet" },
 ];
 
-const meetingDecisions = [
-  {
-    id: "01",
-    question: "How do we resolve the August staffing collision?",
-    why: "Three APAC activations need the same two core speakers and lab support within five days. Keeping every date creates delivery risk.",
-    call: "Move one activation by a week; approve backup staff for the other two; update the calendar before invitations go out.",
-    owner: "Amina + Noah",
-    due: "Decision Monday · calendar Tuesday",
-  },
-  {
-    id: "02",
-    question: "Which August launches receive limited review capacity first?",
-    why: "Four launches share one review team, and two readiness packets are incomplete. Treating all four as equal guarantees late approvals.",
-    call: "Prioritize the two with committed external dates; assign a backup reviewer; move the other two gates by one week.",
-    owner: "Diego",
-    due: "Priority call Monday · gates Wednesday",
-  },
-  {
-    id: "03",
-    question: "How do we bring Community forecast back to plan?",
-    why: "Travel and venue spend now forecasts 9% above the approved quarter budget, while three events are still uncommitted.",
-    call: "Shift two events to regional delivery and cap venue upgrades; keep a 3% contingency until September commitments close.",
-    owner: "Amina",
-    due: "Decision Monday · reforecast Thursday",
-  },
-];
-
 const suggestedQuestions = [
-  "What are the three decisions executives need to make?",
+  "What decisions do executives need to make?",
   "Where are we over budget?",
   "Which upcoming activations are at risk?",
   "Who owns the most urgent follow-up?",
@@ -73,8 +46,19 @@ function money(value: number) {
 }
 
 function shortDate(value: string) {
+  if (!value) return "No source date";
   const [year, month, day] = value.split("-").map(Number);
+  if (![year, month, day].every(Number.isFinite)) return value;
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(year, month - 1, day));
+}
+
+function reviewWeek(data: OpsData) {
+  const earliest = [...data.activations].sort((a, b) => a.date.localeCompare(b.date))[0]?.date;
+  if (!earliest) return "CURRENT OPERATING REVIEW";
+  const [year, month, day] = earliest.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return `WEEK OF ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date).toUpperCase()} · OPERATING REVIEW`;
 }
 
 function severityRank(item: AttentionItem) {
@@ -119,16 +103,27 @@ export default function Home() {
     const totalBudget = data.budgets.reduce((sum, row) => sum + row.budget, 0);
     const totalForecast = data.budgets.reduce((sum, row) => sum + row.forecast, 0);
     const totalCommitted = data.budgets.reduce((sum, row) => sum + row.committed, 0);
-    const sortedAttention = [...data.attention].sort((a, b) => severityRank(a) - severityRank(b) || a.due.localeCompare(b.due));
+    const sortedAttention = [...data.attention].sort((a, b) => severityRank(a) - severityRank(b) || (a.due || "9999-12-31").localeCompare(b.due || "9999-12-31"));
     const activationRiskCount = data.activations.filter((item) => item.status !== "On Track").length;
-    return { totalBudget, totalForecast, totalCommitted, sortedAttention, activationRiskCount };
+    const decisionItems = sortedAttention.slice(0, 3).map((item, index) => ({
+      id: String(index + 1).padStart(2, "0"),
+      question: item.title,
+      why: item.reason,
+      call: item.nextAction,
+      owner: item.owner,
+      due: item.due,
+      source: item.source,
+      sourceId: item.id,
+    }));
+    return { totalBudget, totalForecast, totalCommitted, sortedAttention, activationRiskCount, decisionItems };
   }, [data]);
 
   async function copyBrief() {
+    if (!summary) return;
     const text = [
       "DEVELOPER ECOSYSTEM — MONDAY OPERATING REVIEW",
-      "Purpose: make three cross-team decisions; project status remains in the pre-read.",
-      ...meetingDecisions.map((item) => `${item.id}. ${item.question}\nWHY NOW: ${item.why}\nRECOMMENDATION: ${item.call}\nOWNER: ${item.owner} · ${item.due}`),
+      `Purpose: resolve ${summary.decisionItems.length} highest-ranked cross-team signals; project status remains in the pre-read.`,
+      ...summary.decisionItems.map((item) => `${item.id}. ${item.question}\nWHY NOW: ${item.why}\nRECOMMENDATION: ${item.call}\nOWNER: ${item.owner} · DUE: ${item.due}\nEVIDENCE: ${item.source} ${item.sourceId}`),
       "CLOSE: Read back the decision, one owner, one date, and the tracker or playbook that changes.",
     ].join("\n\n");
     await navigator.clipboard.writeText(text);
@@ -182,11 +177,11 @@ export default function Home() {
       <section className="shell" id="top">
         <div className="intro-row simple-intro">
           <div>
-            <p className="eyebrow">WEEK OF AUGUST 3 · OPERATING REVIEW</p>
+            <p className="eyebrow">{data ? reviewWeek(data) : "CURRENT OPERATING REVIEW"}</p>
             <h1>What needs<br />attention?</h1>
           </div>
           <div className="intro-note">
-            <span className="note-index">V5</span>
+            <span className="note-index">LIVE</span>
             <p>An operational control tower for the activation calendar, budgets, roadmaps, playbooks, risks, owners, and leadership decisions.</p>
           </div>
         </div>
@@ -194,10 +189,10 @@ export default function Home() {
         <nav className="view-tabs five-tabs" aria-label="Dashboard views">
           {([
             ["overview", "Overview", "attention first"],
-            ["portfolio", "Calendar + budget", "6 pillars"],
-            ["meeting", "Monday review", "3 decisions"],
+            ["portfolio", "Calendar + budget", "cross-pillar"],
+            ["meeting", "Monday review", "decision queue"],
             ["copilot", "Executive copilot", "ask the data"],
-            ["sources", "Data sources", "4 adapters"],
+            ["sources", "Data sources", "source lineage"],
           ] as const).map(([id, label, detail]) => (
             <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)} aria-pressed={view === id}>
               <span>{label}</span><small>{detail}</small>
@@ -206,7 +201,7 @@ export default function Home() {
         </nav>
 
         {error && <div className="load-error"><b>Data refresh failed.</b> {error} <button onClick={() => void refresh()}>Try again</button></div>}
-        {!data && !error && <div className="loading-state">Loading the four sample sources…</div>}
+        {!data && !error && <div className="loading-state">Loading source data…</div>}
 
         {data && summary && view === "overview" && (
           <div className="view-content">
@@ -215,12 +210,12 @@ export default function Home() {
               <article className="metric-card"><span className="metric-label">Roadmap items</span><strong>{data.totals.jiraItems}</strong><span className="delta critical-text">{data.totals.jiraBlocked} blocked · {data.totals.jiraOverdue} overdue</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
               <article className="metric-card"><span className="metric-label">Operational playbooks</span><strong>{data.totals.totalPlaybooks}</strong><span className="delta warning-text">{data.totals.playbooksNeedingReview} need review</span></article>
-              <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>{data.sources.length}/4</strong><span className="delta positive">{data.sources.filter((source) => isConnectedSource(source.mode)).length} connected · {data.sources.filter((source) => !isConnectedSource(source.mode)).length} sample</span></article>
+              <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>{data.sources.length}</strong><span className="delta positive">{data.sources.filter((source) => isConnectedSource(source.mode)).length} connected · {data.sources.filter((source) => !isConnectedSource(source.mode)).length} sample</span></article>
             </section>
 
             <section className="lead-read">
-              <div><p className="eyebrow">LEADERSHIP READ</p><Badge tone="critical">3 decisions</Badge></div>
-              <p><b>Most work is moving.</b> Monday attention should go to the shared staffing collision, limited readiness-review capacity, and the Community budget variance—not a tour of all 47 roadmap items.</p>
+              <div><p className="eyebrow">LEADERSHIP READ</p><Badge tone="critical">{summary.decisionItems.length} decisions</Badge></div>
+              <p><b>Attention is ranked from current source records.</b> Monday should focus on {summary.decisionItems.map((item) => item.question).join("; ")}—not a tour of all {data.totals.jiraItems} roadmap items.</p>
               <button className="text-button" onClick={() => setView("meeting")}>Open decision brief <span>→</span></button>
             </section>
 
@@ -254,7 +249,7 @@ export default function Home() {
 
             <section className="breakpoint-note">
               <span>Plain-language definition</span>
-              <div><h2>What is a breakpoint?</h2><p>If 12 new requests arrive each week and a team can close only 10, the backlog grows by two. That point—when incoming work exceeds capacity—is the breakpoint.</p></div>
+              <div><h2>What is a breakpoint?</h2><p>It is the point where incoming work consistently exceeds the team&apos;s capacity, so the backlog and waiting time begin to grow.</p></div>
               <p><b>For this role:</b> first measure request volume, cycle time, and queue age. Forecasting a breakpoint comes later; it is not the main dashboard.</p>
             </section>
           </div>
@@ -263,12 +258,12 @@ export default function Home() {
         {data && summary && view === "portfolio" && (
           <div className="view-content portfolio-view">
             <section className="section-hero compact-hero">
-              <div><p className="eyebrow">CALENDAR + BUDGET + PRIORITIES</p><h2>One portfolio.<br />Six different pillars.</h2></div>
+              <div><p className="eyebrow">CALENDAR + BUDGET + PRIORITIES</p><h2>One portfolio.<br />Multiple operating pillars.</h2></div>
               <p>Leads keep their working systems. This view normalizes only the fields needed for coordination: status, risk, owner, date, budget, and next action.</p>
             </section>
 
             <section className="panel portfolio-panel">
-              <div className="panel-heading"><div><p className="eyebrow">NEXT 14 DAYS · SMARTSHEET</p><h2>Activation calendar</h2></div><Badge tone="sample">Sample · live adapter</Badge></div>
+              <div className="panel-heading"><div><p className="eyebrow">NEXT 14 DAYS · SMARTSHEET BRIDGE</p><h2>Activation calendar</h2></div><Badge tone="healthy">{data.activations.length} source rows</Badge></div>
               <div className="calendar-table">
                 <div className="calendar-row calendar-head"><span>Date</span><span>Activation</span><span>Pillar / region</span><span>Owner</span><span>Status</span><span>Next action</span><span>Budget</span></div>
                 {data.activations.map((item) => (
@@ -310,23 +305,23 @@ export default function Home() {
           </div>
         )}
 
-        {data && view === "meeting" && (
+        {data && summary && view === "meeting" && (
           <div className="view-content meeting-view">
             <section className="section-hero meeting-hero">
               <div><p className="eyebrow">MONDAY · 30 MINUTES</p><h2>Decisions,<br />not status updates.</h2><p>The dashboard is the pre-read. The meeting handles only cross-team choices, escalations, and changes to owners or resources.</p></div>
-              <div className="meeting-actions"><span><b>3</b> calls ready</span><button className="copy-button" onClick={copyBrief}>{copied ? "Copied ✓" : "Copy meeting brief"}</button></div>
+              <div className="meeting-actions"><span><b>{summary.decisionItems.length}</b> calls ready</span><button className="copy-button" onClick={copyBrief}>{copied ? "Copied ✓" : "Copy meeting brief"}</button></div>
             </section>
 
             <section className="agenda-bar">
-              <div><b>05</b><span>What changed<br />since last Monday</span></div><div><b>20</b><span>Three decisions<br />with recommendations</span></div><div><b>05</b><span>Read back owners,<br />dates, and changes</span></div><p>All project-by-project reporting stays asynchronous.</p>
+              <div><b>05</b><span>What changed<br />since last Monday</span></div><div><b>20</b><span>Ranked decisions<br />with recommendations</span></div><div><b>05</b><span>Read back owners,<br />dates, and changes</span></div><p>All project-by-project reporting stays asynchronous.</p>
             </section>
 
             <div className="decision-list">
-              {meetingDecisions.map((item) => (
+              {summary.decisionItems.map((item) => (
                 <article className="decision-card" key={item.id}>
                   <div className="decision-number">{item.id}</div>
                   <div className="decision-main"><p className="eyebrow">DECISION REQUIRED</p><h2>{item.question}</h2><div className="why-box"><span>Why now</span><p>{item.why}</p></div><div className="call-box"><span>Prepared recommendation</span><p>{item.call}</p></div></div>
-                  <div className="decision-meta"><span>Owner</span><b>{item.owner}</b><span>Timing</span><b>{item.due}</b></div>
+                  <div className="decision-meta"><span>Owner</span><b>{item.owner}</b><span>Due</span><b>{shortDate(item.due)}</b><span>Evidence</span><b>{item.source} · {item.sourceId}</b></div>
                 </article>
               ))}
             </div>
@@ -346,7 +341,7 @@ export default function Home() {
                 <h2>Ask the<br />operating data.</h2>
               </div>
               <div>
-                <Badge tone="sample">Demo analysis active</Badge>
+                <Badge tone="healthy">Grounded in current source snapshot</Badge>
                 <p>Ask a plain-language question. The copilot answers from the same risks, calendar, budget, owners, and playbooks used by the dashboard.</p>
               </div>
             </section>
@@ -378,7 +373,7 @@ export default function Home() {
                 <div className="chat-composer">
                   <label htmlFor="executive-question">Ask about risk, budget, readiness, owners, or upcoming activations</label>
                   <div><textarea id="executive-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void askCopilot(); } }} placeholder="What needs my decision this week?" maxLength={600} rows={2} /><button onClick={() => void askCopilot()} disabled={chatBusy || !question.trim()}>Ask <span>→</span></button></div>
-                  <small>Answers are grounded in the current dashboard snapshot. Configure the NVIDIA NIM environment variables to switch from demo analysis to Nemotron.</small>
+                  <small>Answers are grounded in the current dashboard snapshot. The response labels whether Nemotron or the deterministic fallback produced it.</small>
                 </div>
               </div>
             </section>
@@ -397,7 +392,7 @@ export default function Home() {
                 const sourceHealth = data.sources.find((item) => item.name === source.name);
                 const badgeTone = sourceHealth?.mode === "live" || sourceHealth?.mode === "bridge" ? "healthy" : sourceHealth?.mode === "fallback" ? "watch" : "sample";
                 const badgeLabel = sourceHealth?.mode === "live" ? "Live API" : sourceHealth?.mode === "bridge" ? "Connected demo feed" : sourceHealth?.mode === "fallback" ? "Fallback active" : "Synthetic sample";
-                return <article className={`source-card source-card-${source.tone}`} key={source.name}><div><span className="source-pulse" /> <Badge tone={badgeTone}>{badgeLabel}</Badge></div><h2>{source.name}</h2><p>{source.owns}</p><dl><dt>Connector</dt><dd>{source.endpoint}</dd><dt>Target cadence</dt><dd>{source.cadence}</dd><dt>Last result</dt><dd className="healthy-text">{sourceHealth?.recordCount ?? 0} records · {sourceHealth?.status}</dd></dl></article>;
+                return <article className={`source-card source-card-${source.tone}`} key={source.name}><div><span className="source-pulse" /> <Badge tone={badgeTone}>{badgeLabel}</Badge></div><h2>{source.name}</h2><p>{source.owns}</p><dl><dt>Connector</dt><dd>{source.endpoint}</dd><dt>Designed cadence</dt><dd>{source.cadence}</dd><dt>Last result</dt><dd className="healthy-text">{sourceHealth?.recordCount ?? 0} records · {sourceHealth?.status}</dd></dl></article>;
               })}
             </section>
 
@@ -433,7 +428,7 @@ export default function Home() {
         )}
       </section>
 
-      <footer><span>Developer Ecosystem Operations</span><span>Prototype v0.6 · connected demo feeds · Nemotron-ready</span><span>Calendar · budget · risks · decisions</span></footer>
+      <footer><span>Developer Ecosystem Operations</span><span>Source-backed operating data · Nemotron-ready</span><span>Calendar · budget · risks · decisions</span></footer>
     </main>
   );
 }

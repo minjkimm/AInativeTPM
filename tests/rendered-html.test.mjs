@@ -33,7 +33,7 @@ test("server-renders the finished operations dashboard shell", async () => {
   assert.match(html, /Monday review/);
   assert.match(html, /Executive copilot/);
   assert.match(html, /Data sources/);
-  assert.match(html, /Prototype v0\.6/);
+  assert.match(html, /Source-backed operating data/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/i);
 });
 
@@ -47,6 +47,8 @@ test("keeps the production source adapters and removes starter assets", async ()
 
   assert.match(route, /JIRA_DEMO_SHEET_ID/);
   assert.match(route, /SMARTSHEET_DEMO_SHEET_ID/);
+  assert.match(route, /SMARTSHEET_DEMO_TOTAL_RANGE/);
+  assert.doesNotMatch(route, /SMARTSHEET_DEMO_TOTAL\s*\|\|\s*112/);
   assert.match(route, /GOOGLE_BUDGET_SHEET_ID/);
   assert.match(route, /GOOGLE_ASSET_REGISTER_SHEET_ID/);
   assert.match(route, /Connected synthetic Jira feed/);

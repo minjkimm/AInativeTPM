@@ -61,7 +61,7 @@ function parseCsv(input: string): string[][] {
   return rows.map((cells) => cells.map((cell) => cell.replace(/^\uFEFF/, "").trim()));
 }
 
-async function fetchPublicSheet(sheetId: string, sheetName: string, range: string): Promise<string[][]> {
+async function fetchPublicSheetRange(sheetId: string, sheetName: string, range: string): Promise<string[][]> {
   const url = new URL(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq`);
   url.searchParams.set("tqx", "out:csv");
   url.searchParams.set("sheet", sheetName);
@@ -74,6 +74,11 @@ async function fetchPublicSheet(sheetId: string, sheetName: string, range: strin
     throw new Error("Sheet is not published for read-only web access");
   }
   const table = parseCsv(csv);
+  return table;
+}
+
+async function fetchPublicSheet(sheetId: string, sheetName: string, range: string): Promise<string[][]> {
+  const table = await fetchPublicSheetRange(sheetId, sheetName, range);
   if (table.length < 2) throw new Error("Published Sheet did not return a header and data rows");
   return table;
 }
@@ -192,11 +197,13 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
   const useVendorApi = Boolean(token && sheetId);
   return withFallback("Smartsheet", "smartsheet-activations.json", Boolean(useVendorApi || demoSheetId), async () => {
     if (!useVendorApi) {
-      const table = await fetchPublicSheet(
-        demoSheetId!,
-        process.env.SMARTSHEET_DEMO_SHEET_NAME || "Activation Calendar",
-        process.env.SMARTSHEET_DEMO_RANGE || "A7:O15",
-      );
+      const sheetName = process.env.SMARTSHEET_DEMO_SHEET_NAME || "Activation Calendar";
+      const [table, totalTable] = await Promise.all([
+        fetchPublicSheet(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_RANGE || "A7:O15"),
+        fetchPublicSheetRange(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_TOTAL_RANGE || "B3"),
+      ]);
+      const monthlyTotal = numeric(totalTable[0]?.[0] || "");
+      if (monthlyTotal <= 0) throw new Error("Smartsheet bridge monthly total is missing");
       const titles = table[0].slice(0, 9);
       const columns = titles.map((title, index) => ({ id: index + 1, title }));
       const rows = recordsFromTable(table).map((row, rowIndex) => ({
@@ -206,7 +213,7 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
           value: title === "Date" ? dateOnly(row[title]) : title === "Budget" ? numeric(row[title]) : row[title],
         })),
       }));
-      return { totalRowCount: Number(process.env.SMARTSHEET_DEMO_TOTAL || 112), columns, rows };
+      return { totalRowCount: monthlyTotal, columns, rows };
     }
     const response = await fetch(`https://api.smartsheet.com/2.0/sheets/${sheetId!}`, { headers: { Authorization: `Bearer ${token!}` } });
     if (!response.ok) throw new Error(`Smartsheet returned ${response.status}`);
@@ -217,7 +224,7 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
 async function googleSheetsConnector(): Promise<ConnectorResult> {
   const sheetId = process.env.GOOGLE_SHEET_ID;
   const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
-  const range = process.env.GOOGLE_BUDGET_RANGE || "FY27 Q3 Budget!A1:H";
+  const range = process.env.GOOGLE_BUDGET_RANGE || "FY27 Q3 Budget!A1:L";
   const publicSheetId = process.env.GOOGLE_BUDGET_SHEET_ID;
   const useValuesApi = Boolean(sheetId && apiKey);
   return withFallback("Google Sheets", "google-sheet-budget.json", Boolean(useValuesApi || publicSheetId), async () => {
@@ -231,10 +238,10 @@ async function googleSheetsConnector(): Promise<ConnectorResult> {
     const table = await fetchPublicSheet(
       publicSheetId!,
       process.env.GOOGLE_BUDGET_SHEET_NAME || "FY27 Q3 Budget",
-      process.env.GOOGLE_BUDGET_PUBLIC_RANGE || "A1:H7",
+      process.env.GOOGLE_BUDGET_PUBLIC_RANGE || "A1:L7",
     );
     const values = [table[0], ...table.slice(1).map((row) => row.map((value, index) => index >= 1 && index <= 4 ? String(numeric(value)) : value))];
-    return { range: "FY27 Q3 Budget!A1:H7", majorDimension: "ROWS", values };
+    return { range: "FY27 Q3 Budget!A1:L7", majorDimension: "ROWS", values };
   }, (data) => Math.max((data.values?.length || 1) - 1, 0), "live", useValuesApi ? "Google Sheets Values API v4 loaded with a restricted server-side API key" : "Connected read-only budget Sheet");
 }
 
@@ -266,7 +273,16 @@ async function documentsConnector(): Promise<ConnectorResult> {
         source: "Google Drive asset register",
         totalDocuments: allDocuments.length,
         documentsNeedingReview: allDocuments.filter((doc) => doc.status === "Needs Update" || doc.status === "In Review").length,
-        documents: allDocuments.filter((doc) => doc.dashboardSample).map(({ dashboardSample: _sample, ...doc }) => doc),
+        documents: allDocuments.filter((doc) => doc.dashboardSample).map((doc) => ({
+          id: doc.id,
+          title: doc.title,
+          pillar: doc.pillar,
+          owner: doc.owner,
+          status: doc.status,
+          lastReviewed: doc.lastReviewed,
+          nextReview: doc.nextReview,
+          useCount90d: doc.useCount90d,
+        })),
       };
     }
     const url = new URL("https://www.googleapis.com/drive/v3/files");
@@ -283,7 +299,7 @@ async function documentsConnector(): Promise<ConnectorResult> {
       owner: file.owners?.[0]?.displayName || "Unassigned",
       status: file.appProperties?.status || "Current",
       lastReviewed: file.modifiedTime?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-      nextReview: file.appProperties?.nextReview || "2026-10-01",
+      nextReview: file.appProperties?.nextReview || file.modifiedTime?.slice(0, 10) || "",
       useCount90d: Number(file.appProperties?.useCount90d || 0),
     }));
     return {

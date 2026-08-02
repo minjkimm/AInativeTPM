@@ -10,7 +10,7 @@ function dollars(value: number) {
 
 function topAttention(data: OpsData) {
   const rank = (item: AttentionItem) => item.severity === "Critical" ? 0 : item.severity === "Watch" ? 1 : 2;
-  return [...data.attention].sort((a, b) => rank(a) - rank(b) || a.due.localeCompare(b.due));
+  return [...data.attention].sort((a, b) => rank(a) - rank(b) || (a.due || "9999-12-31").localeCompare(b.due || "9999-12-31"));
 }
 
 function demoAnswer(question: string, data: OpsData) {
@@ -19,20 +19,29 @@ function demoAnswer(question: string, data: OpsData) {
   const totalBudget = data.budgets.reduce((sum, row) => sum + row.budget, 0);
   const totalForecast = data.budgets.reduce((sum, row) => sum + row.forecast, 0);
   const atRisk = data.activations.filter((item) => item.status !== "On Track");
-  const liveSources = data.sources.filter((source) => source.mode === "live");
+  const connectedSources = data.sources.filter((source) => source.mode === "live" || source.mode === "bridge");
 
   if (/budget|spend|forecast|over plan|variance/.test(lower)) {
     const over = data.budgets.filter((row) => row.forecast > row.budget).sort((a, b) => (b.forecast - b.budget) - (a.forecast - a.budget));
-    return {
-      answer: `The portfolio forecasts ${dollars(totalForecast)}, which is ${dollars(totalForecast - totalBudget)} above the ${dollars(totalBudget)} plan. Community is the largest pressure at ${dollars(over[0].forecast - over[0].budget)} over plan. The prepared action is to shift two events to regional delivery and cap venue upgrades before Thursday's reforecast.`,
+    const largest = over[0];
+    const signal = ordered.find((item) => item.source === "Google Sheets" && item.pillar === largest?.pillar);
+    return largest ? {
+      answer: `The portfolio forecasts ${dollars(totalForecast)}, which is ${dollars(totalForecast - totalBudget)} above the ${dollars(totalBudget)} plan. ${largest.pillar} is the largest pressure at ${dollars(largest.forecast - largest.budget)} over plan. The source-backed next action is: ${signal?.nextAction || "review forecast and offset options"}.`,
       evidence: over.map((row) => `Google Sheets · ${row.pillar}: ${dollars(row.forecast)} forecast vs ${dollars(row.budget)} plan`).slice(0, 3),
+    } : {
+      answer: `The portfolio forecasts ${dollars(totalForecast)} against a ${dollars(totalBudget)} plan, and no pillar is currently above plan.`,
+      evidence: data.budgets.slice(0, 3).map((row) => `Google Sheets · ${row.pillar}: ${dollars(row.forecast)} forecast vs ${dollars(row.budget)} plan`),
     };
   }
 
   if (/activation|event|calendar|next 14|delivery/.test(lower)) {
-    return {
-      answer: `${atRisk.length} of the ${data.activations.length} displayed upcoming activations need attention. The most urgent is ${atRisk[0].name}: ${atRisk[0].risk}. The immediate decision is to ${atRisk[0].nextAction.toLowerCase()}.`,
+    const urgent = atRisk[0];
+    return urgent ? {
+      answer: `${atRisk.length} of the ${data.activations.length} displayed upcoming activations need attention. The first source row is ${urgent.name}: ${urgent.risk}. The immediate decision is to ${urgent.nextAction.toLowerCase()}.`,
       evidence: atRisk.slice(0, 4).map((item) => `Smartsheet · ${item.name} · ${item.status} · ${item.date}`),
+    } : {
+      answer: `None of the ${data.activations.length} displayed upcoming activations is currently marked at risk.`,
+      evidence: data.activations.slice(0, 4).map((item) => `Smartsheet · ${item.name} · ${item.status} · ${item.date}`),
     };
   }
 
@@ -48,7 +57,7 @@ function demoAnswer(question: string, data: OpsData) {
 
   if (/source|live|data|fresh|connect/.test(lower)) {
     return {
-      answer: `${liveSources.length} of ${data.sources.length} sources are live. The remaining sources are intentionally using packaged synthetic data until approved credentials are configured. Each source reports its mode and record count so executives can distinguish live evidence from demonstration data.`,
+      answer: `${connectedSources.length} of ${data.sources.length} sources are connected through either a vendor API or a read-only bridge. Each source reports its mode and record count so executives can distinguish live evidence, connected synthetic feeds, and packaged fallbacks.`,
       evidence: data.sources.map((source) => `${source.name} · ${source.mode} · ${source.recordCount} records`),
     };
   }
@@ -63,7 +72,7 @@ function demoAnswer(question: string, data: OpsData) {
 
   const top = ordered.slice(0, 3);
   return {
-    answer: `Three calls deserve executive attention. First, resolve the APAC staffing collision. Second, prioritize limited readiness-review capacity across four launches. Third, bring the Community budget forecast back toward plan. Everything else can remain asynchronous unless its due date or severity changes.`,
+    answer: `${top.length} calls deserve executive attention: ${top.map((item, index) => `${index + 1}) ${item.title} — ${item.nextAction}`).join("; ")}. Everything else can remain asynchronous unless its due date or severity changes.`,
     evidence: top.map((item) => `${item.source} · ${item.id} · ${item.severity} · ${item.owner} · due ${item.due}`),
   };
 }

@@ -46,6 +46,7 @@ export type BudgetRow = {
   owner: string;
   status: string;
   note: string;
+  decisionDue: string;
 };
 
 export type Playbook = {
@@ -129,6 +130,7 @@ export function normalizeOpsPayload(
       owner: values.Owner,
       status: values.Status,
       note: values.Note,
+      decisionDue: values["Decision Due"] || "",
     };
   });
 
@@ -142,7 +144,7 @@ export function normalizeOpsPayload(
       reason: issue.fields.customfield_reason || `${issue.fields.status.name} · ${issue.fields.priority.name} priority`,
       nextAction: issue.fields.customfield_decision || "Confirm owner and resolution date",
       owner: issue.fields.assignee?.displayName || "Unassigned",
-      due: issue.fields.duedate || "2026-08-10",
+      due: issue.fields.duedate || "",
       severity: severityFromJira(issue.fields),
     }));
 
@@ -170,7 +172,7 @@ export function normalizeOpsPayload(
       reason: row.note,
       nextAction: row.forecast > row.budget ? "Review forecast and offset options" : "Confirm remaining-quarter plan",
       owner: row.owner,
-      due: "2026-08-10",
+      due: row.decisionDue,
       severity: row.forecast > row.budget * 1.05 ? "Watch" as const : "Review" as const,
     }));
 
