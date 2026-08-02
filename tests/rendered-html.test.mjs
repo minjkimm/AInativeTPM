@@ -58,3 +58,17 @@ test("keeps the production source adapters and removes starter assets", async ()
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)));
 });
+
+test("normalizes formatted budget currency from source payloads", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/ops"),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    runtime(),
+  );
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.budgets[0].budget, 520000);
+  assert.equal(payload.budgets[0].forecast, 568000);
+  assert.equal(payload.totals.monthlyActivations, 8);
+});

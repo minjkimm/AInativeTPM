@@ -88,6 +88,15 @@ type JiraFields = {
   customfield_reason?: string;
 };
 
+function numericValue(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const text = String(value ?? "").trim();
+  const negative = /^\(.*\)$/.test(text);
+  const parsed = Number(text.replace(/[$,%(),\s]/g, ""));
+  if (!Number.isFinite(parsed)) return 0;
+  return negative ? -parsed : parsed;
+}
+
 function severityFromJira(fields: JiraFields): AttentionItem["severity"] {
   if (fields.status.name === "Blocked" || fields.priority.name === "Highest") return "Critical";
   if (fields.priority.name === "High" || fields.status.name === "Decision Needed") return "Watch";
@@ -123,10 +132,10 @@ export function normalizeOpsPayload(
     const values = Object.fromEntries(budgetHeader.map((header: string, index: number) => [header, row[index]]));
     return {
       pillar: values.Pillar,
-      budget: Number(values["Quarter Budget"]),
-      committed: Number(values.Committed),
-      actual: Number(values.Actual),
-      forecast: Number(values.Forecast),
+      budget: numericValue(values["Quarter Budget"]),
+      committed: numericValue(values.Committed),
+      actual: numericValue(values.Actual),
+      forecast: numericValue(values.Forecast),
       owner: values.Owner,
       status: values.Status,
       note: values.Note,
