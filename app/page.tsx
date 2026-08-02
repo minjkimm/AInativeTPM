@@ -25,14 +25,15 @@ const pillarOrder = [
 
 const sourceDetails = [
   { name: "Jira", owns: "Roadmaps, risks, dependencies", endpoint: "Jira REST API v3", cadence: "Every 30 min", tone: "blue" },
-  { name: "Smartsheet", owns: "Activation calendar, outcomes, and regional learning", endpoint: "Smartsheet Sheets API", cadence: "Every 15 min", tone: "amber" },
-  { name: "Google Sheets", owns: "Quarter budget and forecast", endpoint: "Google Sheets Values API", cadence: "Daily 07:00", tone: "green" },
+  { name: "Smartsheet", owns: "Activation calendar, outcomes, GPU seeding, and regional learning", endpoint: "Smartsheet Sheets API", cadence: "Every 15 min", tone: "amber" },
+  { name: "Google Sheets", owns: "Quarter budget, forecast, and GPU seeding envelope", endpoint: "Google Sheets Values API", cadence: "Daily 07:00", tone: "green" },
   { name: "Documents", owns: "Playbooks, review dates, usage", endpoint: "Google Drive Files API", cadence: "Daily 07:00", tone: "violet" },
 ];
 
 const suggestedQuestions = [
   "What decisions do executives need to make?",
   "Which activation patterns should regions reuse?",
+  "Where should GPU seeding investment increase?",
   "How does the activation handbook work?",
   "Where are we over budget?",
   "Which upcoming activations are at risk?",
@@ -111,6 +112,41 @@ export default function Home() {
     const totalBudget = data.budgets.reduce((sum, row) => sum + row.budget, 0);
     const totalForecast = data.budgets.reduce((sum, row) => sum + row.forecast, 0);
     const totalCommitted = data.budgets.reduce((sum, row) => sum + row.committed, 0);
+    const gpuSeedBudget = data.budgets.reduce((sum, row) => sum + row.gpuSeedBudget, 0);
+    const gpuSeedForecast = data.budgets.reduce((sum, row) => sum + row.gpuSeedForecast, 0);
+    const completedSeeds = data.gpuSeeds.filter((seed) => seed.lifecycleStatus === "Completed");
+    const pipelineSeeds = data.gpuSeeds.filter((seed) => seed.quarter.includes("Pipeline"));
+    const historicalGranted = completedSeeds.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
+    const historicalConsumed = completedSeeds.reduce((sum, seed) => sum + seed.consumedGpuHours, 0);
+    const historicalUtilization = historicalGranted ? historicalConsumed / historicalGranted : 0;
+    const pipelineRequested = pipelineSeeds.reduce((sum, seed) => sum + seed.requestedGpuHours, 0);
+    const pipelineGranted = pipelineSeeds.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
+    const prototypes = completedSeeds.reduce((sum, seed) => sum + seed.prototypesCompleted, 0);
+    const productionPilots = completedSeeds.reduce((sum, seed) => sum + seed.productionPilots, 0);
+    const followOnRequests = completedSeeds.reduce((sum, seed) => sum + seed.followOnRequests, 0);
+    const gpuByPillar = pillarOrder.map((pillar) => {
+      const history = completedSeeds.filter((seed) => seed.pillar === pillar);
+      const pipeline = pipelineSeeds.filter((seed) => seed.pillar === pillar);
+      const granted = history.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
+      const consumed = history.reduce((sum, seed) => sum + seed.consumedGpuHours, 0);
+      const requestedNext = pipeline.reduce((sum, seed) => sum + seed.requestedGpuHours, 0);
+      const grantedNext = pipeline.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
+      const calls = pipeline.map((seed) => seed.recommendation);
+      const recommendation = calls.includes("Approve increase") ? "Increase" : calls.includes("Optimize first") ? "Optimize" : "Hold";
+      const budget = data.budgets.find((row) => row.pillar === pillar);
+      return {
+        pillar,
+        utilization: granted ? consumed / granted : 0,
+        requestedNext,
+        grantedNext,
+        prototypes: history.reduce((sum, seed) => sum + seed.prototypesCompleted, 0),
+        productionPilots: history.reduce((sum, seed) => sum + seed.productionPilots, 0),
+        seedBudget: budget?.gpuSeedBudget || 0,
+        seedForecast: budget?.gpuSeedForecast || 0,
+        recommendation,
+        reason: pipeline[0]?.decisionReason || history[0]?.decisionReason || "No linked evidence",
+      };
+    });
     const outcomeOnTarget = data.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded");
     const reusableAssets = data.outcomes.filter((item) => !item.reusableAsset.toLowerCase().startsWith("no reusable"));
     const regionalReuse = data.outcomes.filter((item) => item.regionsReusing.length > 0);
@@ -129,7 +165,7 @@ export default function Home() {
       })
       .sort((a, b) => activationRank(a.status) - activationRank(b.status) || a.date.localeCompare(b.date))
       .slice(0, 12);
-    const capacityDecision = sortedAttention.find((item) => item.source === "Jira" && item.tags.includes("capacity"));
+    const seedDecision = sortedAttention.find((item) => item.tags.includes("gpu-seeding"));
     const readinessDecision = sortedAttention.find((item) => item.source === "Jira" && item.tags.includes("readiness"));
     const budgetDecision = sortedAttention
       .filter((item) => item.source === "Google Sheets")
@@ -138,7 +174,7 @@ export default function Home() {
         const budgetB = data.budgets.find((row) => row.pillar === b.pillar);
         return ((budgetB?.forecast || 0) - (budgetB?.budget || 0)) - ((budgetA?.forecast || 0) - (budgetA?.budget || 0));
       })[0];
-    const selected = [capacityDecision, readinessDecision, budgetDecision].filter((item): item is AttentionItem => Boolean(item));
+    const selected = [seedDecision, readinessDecision, budgetDecision].filter((item): item is AttentionItem => Boolean(item));
     for (const item of sortedAttention) {
       if (selected.length >= 3) break;
       if (!selected.some((selectedItem) => selectedItem.source === item.source && selectedItem.id === item.id)) selected.push(item);
@@ -153,7 +189,7 @@ export default function Home() {
       source: item.source,
       sourceId: item.id,
     }));
-    return { totalBudget, totalForecast, totalCommitted, outcomeOnTarget, reusableAssets, regionalReuse, outcomePatterns, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
+    return { totalBudget, totalForecast, totalCommitted, gpuSeedBudget, gpuSeedForecast, completedSeeds, pipelineSeeds, historicalUtilization, pipelineRequested, pipelineGranted, prototypes, productionPilots, followOnRequests, gpuByPillar, outcomeOnTarget, reusableAssets, regionalReuse, outcomePatterns, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
   }, [data]);
 
   async function copyBrief() {
@@ -255,12 +291,12 @@ export default function Home() {
               <article className="metric-card"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} monthly exceptions</span></article>
               <article className="metric-card"><span className="metric-label">Roadmap items</span><strong>{data.totals.jiraItems}</strong><span className="delta critical-text">{data.totals.jiraBlocked} blocked · {data.totals.jiraOverdue} overdue</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
-              <article className="metric-card source-metric"><span className="metric-label">Sources reporting</span><strong>{data.sources.length}</strong><span className="delta positive">{data.sources.filter((source) => isConnectedSource(source.mode)).length} connected · {data.sources.filter((source) => !isConnectedSource(source.mode)).length} sample</span></article>
+              <article className="metric-card seed-metric"><span className="metric-label">GPU seeding forecast</span><strong>{money(summary.gpuSeedForecast)}</strong><span className={`delta ${summary.gpuSeedForecast > summary.gpuSeedBudget ? "critical-text" : "positive"}`}>{money(summary.gpuSeedForecast - summary.gpuSeedBudget)} vs plan · {Math.round(summary.historicalUtilization * 100)}% prior utilization</span></article>
             </section>
 
             <section className="lead-read">
               <div><p className="eyebrow">LEADERSHIP READ</p><Badge tone="critical">{summary.decisionItems.length} decisions</Badge></div>
-              <p><b>Attention is ranked from current source records.</b> Monday should focus on {summary.decisionItems.map((item) => item.question).join("; ")}—not a tour of all {data.totals.jiraItems} roadmap items.</p>
+              <p><b>Attention is ranked from current source records.</b> Monday should decide where GPU seeding earns more investment, where delivery must improve first, and which forecast pressures require a tradeoff—not tour all {data.totals.jiraItems} roadmap items.</p>
               <button className="text-button" onClick={() => setView("meeting")}>Open decision brief <span>→</span></button>
             </section>
 
@@ -285,8 +321,8 @@ export default function Home() {
 
             <section className="flow-strip">
               <div className="flow-source"><span>Jira</span><small>roadmaps + blockers</small></div>
-              <div className="flow-source"><span>Smartsheet</span><small>activation calendar</small></div>
-              <div className="flow-source"><span>Google Sheets</span><small>budget + forecast</small></div>
+              <div className="flow-source"><span>Smartsheet</span><small>activations + GPU evidence</small></div>
+              <div className="flow-source"><span>Google Sheets</span><small>budget + seed envelope</small></div>
               <div className="flow-source"><span>Documents</span><small>playbooks + reviews</small></div>
               <i>→</i>
               <div className="flow-output"><b>Normalized attention queue</b><small>Dashboard · Monday brief · weekly digest</small></div>
@@ -328,11 +364,36 @@ export default function Home() {
                   return <div className="budget-row" key={row.pillar}>
                     <div><b>{row.pillar}</b><small>{row.owner}</small></div>
                     <div className="budget-bar"><i style={{ width: `${Math.min(actualPercent, 100)}%` }} /><em style={{ left: `${Math.min(forecastPercent, 100)}%` }} /></div>
-                    <span>Actual {money(row.actual)}</span><span>Forecast {forecastPercent}%</span><Badge tone={row.status === "On Track" ? "healthy" : "watch"}>{row.status}</Badge><p>{row.note}</p>
+                    <span>Actual {money(row.actual)}</span><span>Forecast {forecastPercent}%</span><Badge tone={row.status === "On Track" ? "healthy" : "watch"}>{row.status}</Badge><p>{row.note}<small>GPU seeding: {money(row.gpuSeedForecast)} forecast / {money(row.gpuSeedBudget)} plan</small></p>
                   </div>;
                 })}
               </div>
               <div className="budget-legend"><span><i /> Actual spend</span><span><em /> Forecast position</span><span>100% = approved budget</span></div>
+            </section>
+
+            <section className="panel seed-panel">
+              <div className="panel-heading"><div><p className="eyebrow">ACTIVATION-LINKED INVESTMENT</p><h2>GPU seeding decisions</h2></div><Badge tone={summary.gpuSeedForecast > summary.gpuSeedBudget ? "watch" : "healthy"}>{money(summary.gpuSeedForecast)} forecast</Badge></div>
+              <p className="seed-explainer">Seeding is treated as an activation investment: demand and cost are joined to utilization, prototypes, production pilots, and follow-on requests. That lets leaders increase capacity where technical conversion is strong and optimize or redirect it where capacity was underused.</p>
+              <div className="seed-summary-grid">
+                <article><span>Seed forecast vs plan</span><strong>{money(summary.gpuSeedForecast)}</strong><small>{money(summary.gpuSeedBudget)} approved · {money(summary.gpuSeedForecast - summary.gpuSeedBudget)} variance</small></article>
+                <article><span>Historical utilization</span><strong>{Math.round(summary.historicalUtilization * 100)}%</strong><small>{summary.completedSeeds.length} completed activation cohorts</small></article>
+                <article><span>Technical conversion</span><strong>{summary.prototypes}</strong><small>{summary.productionPilots} production pilots · {summary.followOnRequests} follow-on requests</small></article>
+                <article><span>Q3 capacity gap</span><strong>{(summary.pipelineRequested - summary.pipelineGranted).toLocaleString()}</strong><small>{summary.pipelineRequested.toLocaleString()} requested vs {summary.pipelineGranted.toLocaleString()} provisional GPU hours</small></article>
+              </div>
+              <div className="seed-table" role="table" aria-label="GPU seeding decisions by pillar">
+                <div className="seed-row seed-head" role="row"><span>Pillar</span><span>Prior utilization</span><span>Q3 request / grant</span><span>Technical proof</span><span>Seed forecast</span><span>Decision</span></div>
+                {summary.gpuByPillar.map((row) => (
+                  <div className="seed-row" role="row" key={row.pillar}>
+                    <div><b>{row.pillar}</b><small>{row.reason}</small></div>
+                    <strong>{Math.round(row.utilization * 100)}%</strong>
+                    <span>{row.requestedNext.toLocaleString()} / {row.grantedNext.toLocaleString()} hrs</span>
+                    <span>{row.prototypes} prototypes · {row.productionPilots} pilots</span>
+                    <span>{money(row.seedForecast)} <small>vs {money(row.seedBudget)} plan</small></span>
+                    <Badge tone={row.recommendation === "Increase" ? "healthy" : row.recommendation === "Optimize" ? "watch" : "neutral"}>{row.recommendation}</Badge>
+                  </div>
+                ))}
+              </div>
+              <div className="seed-method"><b>Decision rule:</b> Increase when qualified demand exceeds supply and prior cohorts convert capacity into prototypes or pilots. Optimize when demand exists but setup time, utilization, or support cost weakens conversion. Hold or redirect when evidence is incomplete or capacity remains idle.</div>
             </section>
 
             <section className="panel workstream-panel">

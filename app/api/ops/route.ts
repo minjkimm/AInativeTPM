@@ -6,6 +6,7 @@ import smartsheetSample from "../../../public/mock/smartsheet-activations.json";
 import budgetSample from "../../../public/mock/google-sheet-budget.json";
 import documentsSample from "../../../public/mock/playbook-documents.json";
 import { syntheticActivationOutcomes } from "../../outcome-sample";
+import { syntheticGpuSeeds } from "../../gpu-seeding-sample";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ function expandedSmartsheetSample(base: any) {
     };
     return { id: 1200 + index, cells: base.columns.map((column: any) => ({ columnId: column.id, value: values[column.title] ?? "" })) };
   });
-  return { ...base, totalRowCount: 112, rows: [...base.rows, ...generated], outcomes: syntheticActivationOutcomes() };
+  return { ...base, totalRowCount: 112, rows: [...base.rows, ...generated], outcomes: syntheticActivationOutcomes(), gpuSeeds: syntheticGpuSeeds() };
 }
 
 function health(name: SourceName, mode: SourceHealth["mode"], status: string, recordCount: number): SourceHealth {
@@ -244,18 +245,23 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
   return withFallback("Smartsheet", "smartsheet-activations.json", Boolean(useVendorApi || demoSheetId), async () => {
     if (!useVendorApi) {
       const sheetName = process.env.SMARTSHEET_DEMO_SHEET_NAME || "Activation Calendar";
-      const [table, totalTable, outcomeTable] = await Promise.all([
-        fetchPublicSheet(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_RANGE || "A7:O119"),
+      const [table, totalTable, outcomeTable, gpuTable] = await Promise.all([
+        fetchPublicSheet(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_RANGE || "A7:P119"),
         fetchPublicSheetRange(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_TOTAL_RANGE || "B3"),
         fetchPublicSheet(
           demoSheetId!,
           process.env.SMARTSHEET_DEMO_OUTCOME_SHEET_NAME || "Outcome & Learning",
-          process.env.SMARTSHEET_DEMO_OUTCOME_RANGE || "A1:U25",
+          process.env.SMARTSHEET_DEMO_OUTCOME_RANGE || "A1:V25",
+        ),
+        fetchPublicSheet(
+          demoSheetId!,
+          process.env.SMARTSHEET_DEMO_GPU_SHEET_NAME || "GPU Seeding",
+          process.env.SMARTSHEET_DEMO_GPU_RANGE || "A1:AA37",
         ),
       ]);
       const monthlyTotal = numeric(totalTable[0]?.[0] || "");
       if (monthlyTotal <= 0) throw new Error("Smartsheet bridge monthly total is missing");
-      const titles = table[0].slice(0, 9);
+      const titles = table[0];
       const columns = titles.map((title, index) => ({ id: index + 1, title }));
       const rows = recordsFromTable(table).map((row, rowIndex) => ({
         id: 1001 + rowIndex,
@@ -267,6 +273,7 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
       if (monthlyTotal !== rows.length) throw new Error(`Smartsheet bridge total ${monthlyTotal} does not match ${rows.length} detailed rows`);
       const outcomes = recordsFromTable(outcomeTable).map((row) => ({
         id: row["Outcome ID"],
+        activationId: row["Activation ID"],
         activation: row.Activation,
         completionDate: dateOnly(row["Completion Date"]),
         originRegion: row["Origin Region"],
@@ -288,7 +295,19 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
         owner: row.Owner,
         synthetic: row.Synthetic === "TRUE",
       }));
-      return { totalRowCount: monthlyTotal, columns, rows, outcomes };
+      const gpuSeeds = recordsFromTable(gpuTable).map((row) => ({
+        id: row["Seed ID"], activationId: row["Activation ID"], outcomeId: row["Outcome ID"], quarter: row.Quarter,
+        activation: row.Activation, region: row.Region, pillar: row.Pillar, audience: row.Audience,
+        gpuProduct: row["GPU Product"], deliveryMode: row["Delivery Mode"], qualifiedRequests: numeric(row["Qualified Requests"]),
+        approvedDevelopers: numeric(row["Approved Developers"]), deliveredDevelopers: numeric(row["Delivered Developers"]),
+        requestedGpuHours: numeric(row["Requested GPU Hours"]), grantedGpuHours: numeric(row["Granted GPU Hours"]),
+        consumedGpuHours: numeric(row["Consumed GPU Hours"]), utilization: numeric(row["Utilization %"]) / 100,
+        timeToFirstWorkloadDays: numeric(row["Time to First Workload Days"]), prototypesCompleted: numeric(row["Prototypes Completed"]),
+        productionPilots: numeric(row["Production Pilots"]), followOnRequests: numeric(row["Follow-on Requests"]),
+        seedValue: numeric(row["Seed Value"]), supportCost: numeric(row["Support Cost"]), lifecycleStatus: row["Lifecycle Status"],
+        recommendation: row.Recommendation, decisionReason: row["Decision Reason"], synthetic: row.Synthetic === "TRUE",
+      }));
+      return { totalRowCount: monthlyTotal, columns, rows, outcomes, gpuSeeds };
     }
     const response = await fetch(`https://api.smartsheet.com/2.0/sheets/${sheetId!}`, { headers: { Authorization: `Bearer ${token!}` } });
     if (!response.ok) throw new Error(`Smartsheet returned ${response.status}`);
@@ -299,7 +318,7 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
 async function googleSheetsConnector(): Promise<ConnectorResult> {
   const sheetId = process.env.GOOGLE_SHEET_ID;
   const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
-  const range = process.env.GOOGLE_BUDGET_RANGE || "FY27 Q3 Budget!A1:M";
+  const range = process.env.GOOGLE_BUDGET_RANGE || "FY27 Q3 Budget!A1:O";
   const publicSheetId = process.env.GOOGLE_BUDGET_SHEET_ID;
   const useValuesApi = Boolean(sheetId && apiKey);
   return withFallback("Google Sheets", "google-sheet-budget.json", Boolean(useValuesApi || publicSheetId), async () => {
@@ -313,10 +332,10 @@ async function googleSheetsConnector(): Promise<ConnectorResult> {
     const table = await fetchPublicSheet(
       publicSheetId!,
       process.env.GOOGLE_BUDGET_SHEET_NAME || "FY27 Q3 Budget",
-      process.env.GOOGLE_BUDGET_PUBLIC_RANGE || "A1:M7",
+      process.env.GOOGLE_BUDGET_PUBLIC_RANGE || "A1:O7",
     );
     const values = [table[0], ...table.slice(1).map((row) => row.map((value, index) => index >= 1 && index <= 4 ? String(numeric(value)) : value))];
-    return { range: "FY27 Q3 Budget!A1:M7", majorDimension: "ROWS", values };
+    return { range: "FY27 Q3 Budget!A1:O7", majorDimension: "ROWS", values };
   }, (data) => Math.max((data.values?.length || 1) - 1, 0), "live", useValuesApi ? "Google Sheets Values API v4 loaded with a restricted server-side API key" : "Connected read-only budget Sheet");
 }
 

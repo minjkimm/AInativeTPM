@@ -1,6 +1,7 @@
 /* External API payloads are intentionally decoded at the connector boundary. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { syntheticActivationOutcomes } from "./outcome-sample";
+import { syntheticGpuSeeds } from "./gpu-seeding-sample";
 export type SourceName = "Jira" | "Smartsheet" | "Google Sheets" | "Documents";
 
 export type SourceMode = "live" | "bridge" | "sample" | "fallback";
@@ -28,6 +29,7 @@ export type AttentionItem = {
 
 export type Activation = {
   id: number;
+  activationId: string;
   name: string;
   date: string;
   region: string;
@@ -41,6 +43,7 @@ export type Activation = {
 
 export type ActivationOutcome = {
   id: string;
+  activationId: string;
   activation: string;
   completionDate: string;
   originRegion: string;
@@ -63,6 +66,36 @@ export type ActivationOutcome = {
   synthetic: boolean;
 };
 
+export type GpuSeed = {
+  id: string;
+  activationId: string;
+  outcomeId: string;
+  quarter: string;
+  activation: string;
+  region: string;
+  pillar: string;
+  audience: string;
+  gpuProduct: string;
+  deliveryMode: string;
+  qualifiedRequests: number;
+  approvedDevelopers: number;
+  deliveredDevelopers: number;
+  requestedGpuHours: number;
+  grantedGpuHours: number;
+  consumedGpuHours: number;
+  utilization: number;
+  timeToFirstWorkloadDays: number;
+  prototypesCompleted: number;
+  productionPilots: number;
+  followOnRequests: number;
+  seedValue: number;
+  supportCost: number;
+  lifecycleStatus: string;
+  recommendation: string;
+  decisionReason: string;
+  synthetic: boolean;
+};
+
 export type BudgetRow = {
   pillar: string;
   budget: number;
@@ -74,6 +107,8 @@ export type BudgetRow = {
   note: string;
   decisionDue: string;
   recommendation: string;
+  gpuSeedBudget: number;
+  gpuSeedForecast: number;
 };
 
 export type Playbook = {
@@ -91,6 +126,7 @@ export type OpsData = {
   attention: AttentionItem[];
   activations: Activation[];
   outcomes: ActivationOutcome[];
+  gpuSeeds: GpuSeed[];
   budgets: BudgetRow[];
   playbooks: Playbook[];
   sources: SourceHealth[];
@@ -143,6 +179,7 @@ export function normalizeOpsPayload(
     const values = Object.fromEntries(row.cells.map((cell) => [columnTitles.get(cell.columnId), cell.value]));
     return {
       id: row.id,
+      activationId: String(values["Activation ID"] || `ACT-${String(row.id).padStart(3, "0")}`),
       name: String(values.Activation),
       date: String(values.Date),
       region: String(values.Region),
@@ -169,11 +206,14 @@ export function normalizeOpsPayload(
       note: values.Note,
       decisionDue: values["Decision Due"] || "",
       recommendation: values["Prepared Recommendation"] || "",
+      gpuSeedBudget: numericValue(values["GPU Seeding Budget"]),
+      gpuSeedForecast: numericValue(values["GPU Seeding Forecast"]),
     };
   });
 
   const outcomes: ActivationOutcome[] = (sheet.outcomes || []).map((row: any) => ({
     id: String(row.id),
+    activationId: String(row.activationId || ""),
     activation: String(row.activation),
     completionDate: String(row.completionDate),
     originRegion: String(row.originRegion),
@@ -193,6 +233,36 @@ export function normalizeOpsPayload(
     recommendation: String(row.recommendation),
     playbook: String(row.playbook),
     owner: String(row.owner),
+    synthetic: Boolean(row.synthetic),
+  }));
+
+  const gpuSeeds: GpuSeed[] = (sheet.gpuSeeds || []).map((row: any) => ({
+    id: String(row.id),
+    activationId: String(row.activationId),
+    outcomeId: String(row.outcomeId || ""),
+    quarter: String(row.quarter),
+    activation: String(row.activation),
+    region: String(row.region),
+    pillar: String(row.pillar),
+    audience: String(row.audience),
+    gpuProduct: String(row.gpuProduct),
+    deliveryMode: String(row.deliveryMode),
+    qualifiedRequests: numericValue(row.qualifiedRequests),
+    approvedDevelopers: numericValue(row.approvedDevelopers),
+    deliveredDevelopers: numericValue(row.deliveredDevelopers),
+    requestedGpuHours: numericValue(row.requestedGpuHours),
+    grantedGpuHours: numericValue(row.grantedGpuHours),
+    consumedGpuHours: numericValue(row.consumedGpuHours),
+    utilization: numericValue(row.utilization),
+    timeToFirstWorkloadDays: numericValue(row.timeToFirstWorkloadDays),
+    prototypesCompleted: numericValue(row.prototypesCompleted),
+    productionPilots: numericValue(row.productionPilots),
+    followOnRequests: numericValue(row.followOnRequests),
+    seedValue: numericValue(row.seedValue),
+    supportCost: numericValue(row.supportCost),
+    lifecycleStatus: String(row.lifecycleStatus),
+    recommendation: String(row.recommendation),
+    decisionReason: String(row.decisionReason),
     synthetic: Boolean(row.synthetic),
   }));
 
@@ -241,6 +311,26 @@ export function normalizeOpsPayload(
       tags: ["budget", "forecast"],
     }));
 
+  const gpuSeedAttention: AttentionItem[] = [...new Set(gpuSeeds.filter((seed) => seed.quarter.includes("Pipeline")).map((seed) => seed.pillar))]
+    .map((pillar) => {
+      const items = gpuSeeds.filter((seed) => seed.quarter.includes("Pipeline") && seed.pillar === pillar);
+      const requested = items.reduce((sum, seed) => sum + seed.requestedGpuHours, 0);
+      const granted = items.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
+      const call = items.find((seed) => seed.recommendation === "Approve increase") || items[0];
+      return {
+        id: `GPU-${pillar}`,
+        source: "Smartsheet" as const,
+        pillar,
+        title: `${pillar} GPU seeding allocation`,
+        reason: `${requested.toLocaleString()} requested GPU hours vs ${granted.toLocaleString()} provisionally granted; ${call?.decisionReason || "review demand and evidence"}`,
+        nextAction: call?.recommendation === "Approve increase" ? "Approve incremental GPU seeding capacity for the linked Q3 activations" : call?.recommendation || "Review allocation",
+        owner: budgets.find((row) => row.pillar === pillar)?.owner || "Unassigned",
+        due: budgets.find((row) => row.pillar === pillar)?.decisionDue || "2026-08-14",
+        severity: call?.recommendation === "Approve increase" ? "Watch" as const : "Review" as const,
+        tags: ["gpu-seeding", "investment"],
+      };
+    });
+
   const documentAttention: AttentionItem[] = docs.documents
     .filter((doc: Playbook) => doc.status === "Needs Update" || doc.status === "In Review")
     .map((doc: Playbook) => ({
@@ -257,9 +347,10 @@ export function normalizeOpsPayload(
     }));
 
   return {
-    attention: [...jiraAttention, ...activationAttention, ...budgetAttention, ...documentAttention],
+    attention: [...jiraAttention, ...gpuSeedAttention, ...activationAttention, ...budgetAttention, ...documentAttention],
     activations,
     outcomes,
+    gpuSeeds,
     budgets,
     playbooks: docs.documents,
     sources,
@@ -302,6 +393,6 @@ export async function loadOpsData(): Promise<OpsData> {
       { name: "Google Sheets", mode: "fallback", status: "Browser fallback active", recordCount: Math.max(budget.values.length - 1, 0), refreshedAt },
       { name: "Documents", mode: "fallback", status: "Browser fallback active", recordCount: documents.documents.length, refreshedAt },
     ];
-    return normalizeOpsPayload(jira, { ...smartsheet, outcomes: syntheticActivationOutcomes() }, budget, documents, sources);
+    return normalizeOpsPayload(jira, { ...smartsheet, outcomes: syntheticActivationOutcomes(), gpuSeeds: syntheticGpuSeeds() }, budget, documents, sources);
   }
 }

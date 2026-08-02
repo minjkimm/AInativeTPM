@@ -50,12 +50,14 @@ test("keeps the production source adapters and removes starter assets", async ()
   assert.match(route, /SMARTSHEET_DEMO_SHEET_ID/);
   assert.match(route, /SMARTSHEET_DEMO_TOTAL_RANGE/);
   assert.match(route, /SMARTSHEET_DEMO_OUTCOME_RANGE/);
+  assert.match(route, /SMARTSHEET_DEMO_GPU_RANGE/);
   assert.doesNotMatch(route, /SMARTSHEET_DEMO_TOTAL\s*\|\|\s*112/);
   assert.match(route, /GOOGLE_BUDGET_SHEET_ID/);
   assert.match(route, /GOOGLE_ASSET_REGISTER_SHEET_ID/);
   assert.match(route, /Connected synthetic Jira feed/);
   assert.match(route, /Authenticated Jira REST API/);
   assert.match(page, /Connected demo feed/);
+  assert.match(page, /GPU seeding decisions/);
   assert.match(layout, /title:\s*"Developer Ecosystem Operations"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)));
@@ -77,6 +79,11 @@ test("normalizes formatted budget currency from source payloads", async () => {
   assert.equal(payload.totals.jiraBlocked, 6);
   assert.equal(payload.totals.jiraOverdue, 5);
   assert.equal(payload.outcomes.length, 24);
+  assert.equal(payload.gpuSeeds.length, 36);
+  assert.equal(payload.gpuSeeds.filter((item) => item.lifecycleStatus === "Completed").length, 24);
+  assert.equal(payload.gpuSeeds.filter((item) => item.quarter.includes("Pipeline")).length, 12);
+  assert.equal(payload.budgets[0].gpuSeedBudget, 160000);
+  assert.equal(payload.budgets[0].gpuSeedForecast, 185000);
   assert.equal(payload.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded").length, 18);
   assert.equal(payload.budgets[0].recommendation.includes("regional delivery"), true);
 });
