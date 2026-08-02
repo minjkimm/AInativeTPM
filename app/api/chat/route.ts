@@ -110,8 +110,10 @@ export async function POST(request: Request) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model,
+          reasoning_effort: "none",
           temperature: 0.2,
           max_tokens: 600,
+          stream: false,
           messages: [
             {
               role: "system",
