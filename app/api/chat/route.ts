@@ -47,11 +47,14 @@ function demoAnswer(question: string, data: OpsData) {
   }
 
   if (/outcome|learning|learn|scale|reuse|regional|region|standardize|stop/.test(lower)) {
-    const onTarget = data.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded");
-    const patterns = data.outcomes.filter((item) => (item.recommendation === "Scale" || item.recommendation === "Standardize") && item.regionsReusing.length > 0);
+    const stop = data.outcomes.filter((item) => item.recommendation === "Stop");
+    const adjust = data.outcomes.filter((item) => item.recommendation === "Adjust");
+    const scale = data.outcomes.filter((item) => item.recommendation === "Scale");
+    const standardize = data.outcomes.filter((item) => item.recommendation === "Standardize");
+    const priority = [...stop, ...adjust].slice(0, 4);
     return {
-      answer: `${onTarget.length} of ${data.outcomes.length} completed activations met or exceeded their outcome target. ${patterns.length} proven patterns have both a scale-or-standardize recommendation and evidence of regional reuse. The strongest next step is to reuse ${patterns[0]?.reusableAsset || "the highest-performing activation asset"} from ${patterns[0]?.activation || "the top-performing activation"}, while preserving its readiness and measurement gates.`,
-      evidence: patterns.slice(0, 4).map((item) => `${item.id} · ${item.originRegion} → ${item.regionsReusing.join(", ")} · ${item.recommendation}`),
+      answer: `The completed evidence produces four operating calls: ${stop.length} formats should not repeat, ${adjust.length} must change before another cohort, ${scale.length} can expand to another region, and ${standardize.length} should become the default practice. Start with ${priority.map((item) => `${item.activation}: ${item.actual} ${item.unit} completed against ${item.target} required; ${item.recommendation.toLowerCase()}`).join("; ")}.`,
+      evidence: priority.map((item) => `${item.id} · ${item.successMetric} · ${item.actual}/${item.target} · ${item.recommendation}`),
     };
   }
 
@@ -120,7 +123,6 @@ function demoAnswer(question: string, data: OpsData) {
 }
 
 function executiveContext(data: OpsData) {
-  const onTarget = data.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded");
   const reusable = data.outcomes.filter((item) => !item.reusableAsset.toLowerCase().startsWith("no reusable"));
   const regionalReuse = data.outcomes.filter((item) => item.regionsReusing.length > 0);
   const provenPatterns = data.outcomes.filter((item) => (item.recommendation === "Scale" || item.recommendation === "Standardize") && item.regionsReusing.length > 0);
@@ -131,7 +133,12 @@ function executiveContext(data: OpsData) {
       historicalCohorts: history.length,
       pipelineCohorts: pipeline.length,
       completed: items.length,
-      onTarget: items.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded").length,
+      decisions: {
+        stop: items.filter((item) => item.recommendation === "Stop").length,
+        adjust: items.filter((item) => item.recommendation === "Adjust").length,
+        scale: items.filter((item) => item.recommendation === "Scale").length,
+        standardize: items.filter((item) => item.recommendation === "Standardize").length,
+      },
       regionallyReused: items.filter((item) => item.regionsReusing.length > 0).length,
       outcomeIds: items.map((item) => item.id),
     };
@@ -166,7 +173,12 @@ function executiveContext(data: OpsData) {
     activations: data.activations,
     outcomePortfolio: {
       completed: data.outcomes.length,
-      onTarget: onTarget.length,
+      decisionCounts: {
+        stop: data.outcomes.filter((item) => item.recommendation === "Stop").length,
+        adjust: data.outcomes.filter((item) => item.recommendation === "Adjust").length,
+        scale: data.outcomes.filter((item) => item.recommendation === "Scale").length,
+        standardize: data.outcomes.filter((item) => item.recommendation === "Standardize").length,
+      },
       reusableAssets: reusable.length,
       regionallyReused: regionalReuse.length,
       provenPatternCount: provenPatterns.length,

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadOpsData, type AttentionItem, type OpsData } from "./ops-data";
-import { activationLifecycle, handbookRules } from "./handbook-data";
 
 type View = "overview" | "portfolio" | "outcomes" | "meeting" | "copilot" | "sources";
 
@@ -25,14 +24,14 @@ const pillarOrder = [
 
 const sourceDetails = [
   { name: "Jira", owns: "Roadmaps, risks, dependencies", endpoint: "Jira REST API v3", cadence: "Every 30 min", tone: "blue" },
-  { name: "Smartsheet", owns: "Activation calendar, outcomes, GPU seeding, and regional learning", endpoint: "Smartsheet Sheets API", cadence: "Every 15 min", tone: "amber" },
+  { name: "Smartsheet", owns: "Activation calendar, post-activation results, GPU seeding, and regional learning", endpoint: "Smartsheet Sheets API", cadence: "Every 15 min", tone: "amber" },
   { name: "Google Sheets", owns: "Quarter budget, forecast, and GPU seeding envelope", endpoint: "Google Sheets Values API", cadence: "Daily 07:00", tone: "green" },
   { name: "Documents", owns: "Playbooks, review dates, usage", endpoint: "Google Drive Files API", cadence: "Daily 07:00", tone: "violet" },
 ];
 
 const suggestedQuestions = [
   "What decisions do executives need to make?",
-  "Which activation patterns should regions reuse?",
+  "Which activation formats should we stop or change?",
   "Where should GPU seeding investment increase?",
   "How does the activation handbook work?",
   "Where are we over budget?",
@@ -40,6 +39,14 @@ const suggestedQuestions = [
 ];
 
 const gpuEvidenceUrl = "https://docs.google.com/spreadsheets/d/1Vym0mUmg24zZeFVkjL10cxS4RQRN8a2wy2L5dmIYBr0/edit#gid=97742788";
+const outcomeEvidenceUrl = "https://docs.google.com/spreadsheets/d/1Vym0mUmg24zZeFVkjL10cxS4RQRN8a2wy2L5dmIYBr0/edit#gid=1155916971";
+
+const gpuUseCases: Record<string, string> = {
+  Community: "Hosted H100 build labs for developers attending community and partner activations",
+  "Open Models": "H200 cloud credits for model evaluation, fine-tuning, and adoption workloads",
+  CUDA: "Hosted H100 labs for profiling, porting, and performance-optimization workloads",
+  "Open Source Foundations": "A100 credits only for maintainers with a defined compute-backed project",
+};
 
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
   return <span className={`badge badge-${tone}`}>{children}</span>;
@@ -137,6 +144,11 @@ export default function Home() {
       const budget = data.budgets.find((row) => row.pillar === pillar);
       return {
         pillar,
+        useCase: gpuUseCases[pillar] || "GPU-backed developer workload",
+        pipelineCount: pipeline.length,
+        pipelineActivations: pipeline.map((seed) => seed.activation),
+        gpuProducts: [...new Set(pipeline.map((seed) => seed.gpuProduct))],
+        deliveryModes: [...new Set(pipeline.map((seed) => seed.deliveryMode))],
         utilization: granted ? consumed / granted : 0,
         requestedNext,
         grantedNext,
@@ -148,29 +160,22 @@ export default function Home() {
         reason: pipeline[0]?.decisionReason || history[0]?.decisionReason || "No linked evidence",
       };
     });
-    const buildGpuDecisionGroup = (decision: string, rows: typeof gpuByPillar, rationale: string) => ({
-      decision,
-      pillars: rows.map((row) => row.pillar),
-      utilizationLow: rows.length ? Math.min(...rows.map((row) => row.utilization)) : 0,
-      utilizationHigh: rows.length ? Math.max(...rows.map((row) => row.utilization)) : 0,
-      capacityGap: rows.reduce((sum, row) => sum + row.requestedNext - row.grantedNext, 0),
-      prototypes: rows.reduce((sum, row) => sum + row.prototypes, 0),
-      productionPilots: rows.reduce((sum, row) => sum + row.productionPilots, 0),
-      seedBudget: rows.reduce((sum, row) => sum + row.seedBudget, 0),
-      seedForecast: rows.reduce((sum, row) => sum + row.seedForecast, 0),
-      rationale,
-    });
-    const pipelineGpuRows = gpuByPillar.filter((row) => row.requestedNext > 0);
-    const gpuDecisionGroups = [
-      buildGpuDecisionGroup("Increase", pipelineGpuRows.filter((row) => row.recommendation === "Increase"), "Strong prior use and technical conversion; Q3 demand exceeds provisional supply."),
-      buildGpuDecisionGroup("Optimize first", pipelineGpuRows.filter((row) => row.recommendation === "Optimize"), "Demand exists, but setup time or support intensity should improve before adding supply."),
-      buildGpuDecisionGroup("Hold for evidence", pipelineGpuRows.filter((row) => row.recommendation === "Hold"), "Keep provisional capacity until the next cohort confirms conversion and follow-on demand."),
-      buildGpuDecisionGroup("No Q3 request", gpuByPillar.filter((row) => row.requestedNext === 0), "No pipeline request is recorded, so there is no new allocation decision this cycle."),
-    ].filter((group) => group.pillars.length > 0);
-    const outcomeOnTarget = data.outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded");
-    const reusableAssets = data.outcomes.filter((item) => !item.reusableAsset.toLowerCase().startsWith("no reusable"));
-    const regionalReuse = data.outcomes.filter((item) => item.regionsReusing.length > 0);
-    const outcomePatterns = data.outcomes.filter((item) => (item.recommendation === "Scale" || item.recommendation === "Standardize") && item.regionsReusing.length > 0);
+    const gpuInvestmentCalls = gpuByPillar.filter((row) => row.pipelineCount > 0);
+    const gpuNoRequestPillars = gpuByPillar.filter((row) => row.pipelineCount === 0).map((row) => row.pillar);
+    const stopOutcomes = data.outcomes.filter((item) => item.recommendation === "Stop");
+    const adjustOutcomes = data.outcomes.filter((item) => item.recommendation === "Adjust");
+    const scaleOutcomes = data.outcomes.filter((item) => item.recommendation === "Scale");
+    const standardizeOutcomes = data.outcomes.filter((item) => item.recommendation === "Standardize");
+    const meetingOutcomes = [...stopOutcomes, ...adjustOutcomes.slice(0, 2), ...scaleOutcomes.slice(0, 1)].map((item) => ({
+      ...item,
+      preparedCall: item.recommendation === "Stop"
+        ? `Do not repeat this format. ${item.learning}`
+        : item.recommendation === "Adjust"
+          ? `Run the next cohort only after this change: ${item.learning}`
+          : item.recommendation === "Scale"
+            ? `Approve reuse in ${item.regionsReusing.join(", ") || "one additional region"} using ${item.reusableAsset}.`
+            : `Make ${item.reusableAsset} the default asset in ${item.playbook}.`,
+    }));
     const sortedAttention = [...data.attention].sort((a, b) => severityRank(a) - severityRank(b) || (a.due || "9999-12-31").localeCompare(b.due || "9999-12-31"));
     const activationRiskCount = data.activations.filter((item) => item.status !== "On Track").length;
     const start = reviewStart(data);
@@ -209,7 +214,7 @@ export default function Home() {
       source: item.source,
       sourceId: item.id,
     }));
-    return { totalBudget, totalForecast, gpuSeedBudget, gpuSeedForecast, completedSeeds, pipelineSeeds, historicalUtilization, pipelineRequested, pipelineGranted, prototypes, productionPilots, followOnRequests, gpuByPillar, gpuDecisionGroups, outcomeOnTarget, reusableAssets, regionalReuse, outcomePatterns, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
+    return { totalBudget, totalForecast, gpuSeedBudget, gpuSeedForecast, completedSeeds, pipelineSeeds, historicalUtilization, pipelineRequested, pipelineGranted, prototypes, productionPilots, followOnRequests, gpuInvestmentCalls, gpuNoRequestPillars, stopOutcomes, adjustOutcomes, scaleOutcomes, standardizeOutcomes, meetingOutcomes, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
   }, [data]);
 
   async function copyBrief() {
@@ -276,7 +281,7 @@ export default function Home() {
           </div>
           <div className="intro-note">
             <span className="note-index">LIVE</span>
-            <p>An operational control tower connecting portfolio decisions, activation outcomes, regional learning, budgets, risks, owners, and repeatable playbooks.</p>
+            <p>An operational control tower connecting decisions, post-activation developer results, budgets, risks, owners, and the playbooks that must change.</p>
           </div>
         </div>
 
@@ -285,7 +290,7 @@ export default function Home() {
             {([
               ["overview", "Overview", "attention first"],
               ["portfolio", "Calendar + budget", "cross-pillar"],
-              ["outcomes", "Outcomes + handbook", "learn and reuse"],
+              ["outcomes", "Results + playbook", "repeat, fix, or stop"],
               ["meeting", "Monday review", "decision queue"],
             ] as const).map(([id, label, detail]) => (
               <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)} aria-pressed={view === id}>
@@ -306,7 +311,7 @@ export default function Home() {
         {data && summary && view === "overview" && (
           <div className="view-content">
             <section className="metric-grid ops-metrics executive-metrics" aria-label="Portfolio summary">
-              <article className="metric-card primary-metric"><span className="metric-label">Completed outcomes on target</span><strong>{Math.round(summary.outcomeOnTarget.length / Math.max(data.outcomes.length, 1) * 100)}%</strong><span className="delta">{summary.outcomeOnTarget.length} of {data.outcomes.length} met or exceeded</span></article>
+              <article className="metric-card primary-metric"><span className="metric-label">Formats requiring change</span><strong>{summary.stopOutcomes.length + summary.adjustOutcomes.length}</strong><span className="delta">{summary.stopOutcomes.length} stop · {summary.adjustOutcomes.length} fix before repeat</span></article>
               <article className="metric-card"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} monthly exceptions</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
               <article className="metric-card seed-metric"><span className="metric-label">GPU seeding forecast</span><strong>{money(summary.gpuSeedForecast)}</strong><span className={`delta ${summary.gpuSeedForecast > summary.gpuSeedBudget ? "critical-text" : "positive"}`}>{money(summary.gpuSeedForecast - summary.gpuSeedBudget)} vs plan · {Math.round(summary.historicalUtilization * 100)}% prior utilization</span></article>
@@ -388,15 +393,15 @@ export default function Home() {
                 <article><span>Q3 capacity gap</span><strong>{(summary.pipelineRequested - summary.pipelineGranted).toLocaleString()}</strong><small>{summary.pipelineRequested.toLocaleString()} requested vs {summary.pipelineGranted.toLocaleString()} provisional GPU hours</small></article>
               </div>
               <div className="seed-decision-list">
-                {summary.gpuDecisionGroups.map((group) => (
-                  <article key={group.decision}>
-                    <Badge tone={group.decision === "Increase" ? "healthy" : group.decision === "Optimize first" ? "watch" : "neutral"}>{group.decision}</Badge>
-                    <div><h3>{group.pillars.join(" · ")}</h3><p>{group.rationale}</p></div>
-                    {group.decision !== "No Q3 request" ? <div className="seed-proof"><b>{Math.round(group.utilizationLow * 100)}–{Math.round(group.utilizationHigh * 100)}%</b><span>prior use</span><b>{group.prototypes}</b><span>prototypes</span><b>{group.capacityGap.toLocaleString()}</b><span>hour gap</span></div> : <span className="seed-no-action">No spend change proposed</span>}
+                {summary.gpuInvestmentCalls.map((call) => (
+                  <article key={call.pillar}>
+                    <Badge tone={call.recommendation === "Increase" ? "healthy" : call.recommendation === "Optimize" ? "watch" : "neutral"}>{call.recommendation === "Increase" ? `Fund ${call.pipelineCount} requests` : call.recommendation}</Badge>
+                    <div><h3>{call.pillar}: {call.useCase}</h3><p>{call.pipelineActivations.join(" · ")}</p><small>{call.gpuProducts.join(", ")} · {call.deliveryModes.join(", ")}</small></div>
+                    <div className="seed-proof"><b>{Math.round(call.utilization * 100)}%</b><span>prior use</span><b>{call.prototypes}</b><span>prototypes</span><b>{(call.requestedNext - call.grantedNext).toLocaleString()}</b><span>hour gap</span></div>
                   </article>
                 ))}
               </div>
-              <div className="seed-method"><span><b>Increase</b> when all three signals support expansion.</span><span><b>Optimize</b> when demand exists but delivery efficiency is weak.</span><span><b>Hold</b> when outcome evidence is incomplete.</span></div>
+              <div className="seed-method"><span><b>Fund</b> means approving additional GPU hours for these named developer workloads—not giving GPUs to the pillar itself.</span><span><b>Hold</b> means keep current provisional capacity until a cohort proves workload conversion.</span><span><b>No Q3 request:</b> {summary.gpuNoRequestPillars.join(" · ")}.</span></div>
             </section>
 
           </div>
@@ -405,60 +410,34 @@ export default function Home() {
         {data && summary && view === "outcomes" && (
           <div className="view-content outcomes-view">
             <section className="section-hero outcome-hero">
-              <div><p className="eyebrow">SENSE → DECIDE → LEARN</p><h2>Turn activations<br />into operating knowledge.</h2></div>
-              <p>The outcome register separates activity from impact. Every completed activation records the target, actual result, cost, reusable asset, regional learning, and a recommendation to scale, standardize, adjust, or stop.</p>
+              <div><p className="eyebrow">MONDAY EVIDENCE REVIEW</p><h2>What do we repeat,<br />fix, or stop?</h2></div>
+              <p>A post-activation result is a developer action—not attendance. Each record uses one named behavior, its target and actual count, delivery cost, the observed learning, and the operating change required before the next activation.</p>
             </section>
 
-            <section className="outcome-score-grid" aria-label="Activation outcome summary">
-              <article><span>Completed activations</span><strong>{data.outcomes.length}</strong><small>June–July evidence set</small></article>
-              <article><span>Met or exceeded target</span><strong>{summary.outcomeOnTarget.length}</strong><small>{Math.round(summary.outcomeOnTarget.length / Math.max(data.outcomes.length, 1) * 100)}% outcome rate</small></article>
-              <article><span>Reusable assets produced</span><strong>{summary.reusableAssets.length}</strong><small>kits, guides, rubrics, and runbooks</small></article>
-              <article><span>Cross-region reuse</span><strong>{summary.regionalReuse.length}</strong><small>{summary.outcomePatterns.length} proven scale or standardize patterns</small></article>
+            <section className="outcome-score-grid decision-score-grid" aria-label="Activation decisions from completed evidence">
+              <article className="stop-score"><span>Do not repeat</span><strong>{summary.stopOutcomes.length}</strong><small>formats whose developer action missed the bar</small></article>
+              <article><span>Fix before repeating</span><strong>{summary.adjustOutcomes.length}</strong><small>next cohort requires a named operating change</small></article>
+              <article><span>Expand to a region</span><strong>{summary.scaleOutcomes.length}</strong><small>evidence supports a controlled regional reuse</small></article>
+              <article><span>Make the default</span><strong>{summary.standardizeOutcomes.length}</strong><small>approved asset becomes standard practice</small></article>
             </section>
 
-            <section className="panel pillar-outcomes">
-              <div className="panel-heading"><div><p className="eyebrow">OUTCOME PORTFOLIO</p><h2>Evidence by operating pillar</h2></div><Badge tone="healthy">Source-backed</Badge></div>
-              <div className="pillar-outcome-row pillar-outcome-head"><span>Pillar</span><span>On target</span><span>Cost / outcome</span><span>Regional reuse</span><span>Portfolio call</span></div>
-              {pillarOrder.map((pillar) => {
-                const outcomes = data.outcomes.filter((item) => item.pillar === pillar);
-                const onTarget = outcomes.filter((item) => item.outcomeStatus === "Met" || item.outcomeStatus === "Exceeded").length;
-                const averageCost = outcomes.reduce((sum, item) => sum + item.costPerOutcome, 0) / Math.max(outcomes.length, 1);
-                const reused = outcomes.filter((item) => item.regionsReusing.length > 0).length;
-                const calls = outcomes.reduce<Record<string, number>>((counts, item) => ({ ...counts, [item.recommendation]: (counts[item.recommendation] || 0) + 1 }), {});
-                const call = Object.entries(calls).sort((a, b) => b[1] - a[1])[0]?.[0] || "Review";
-                return <div className="pillar-outcome-row" key={pillar}><b>{pillar}</b><span>{onTarget} / {outcomes.length}</span><span>{money(averageCost)}</span><span>{reused} patterns</span><Badge tone={call === "Stop" ? "critical" : call === "Adjust" ? "watch" : "healthy"}>{call}</Badge></div>;
-              })}
-            </section>
-
-            <section className="panel pattern-library">
-              <div className="panel-heading"><div><p className="eyebrow">REGIONAL LEARNING EXCHANGE</p><h2>Proven patterns another region can act on</h2></div><p className="heading-note">One pattern per pillar</p></div>
-              <div className="pattern-grid">
-                {pillarOrder.map((pillar) => data.outcomes.find((item) => item.pillar === pillar && (item.recommendation === "Scale" || item.recommendation === "Standardize") && item.regionsReusing.length > 0)).filter((item): item is OpsData["outcomes"][number] => Boolean(item)).map((item) => (
+            <section className="panel outcome-meeting-queue">
+              <div className="panel-heading"><div><p className="eyebrow">DECISIONS FOR THIS REVIEW</p><h2>Start with the formats that need a call</h2></div><a className="evidence-link" href={outcomeEvidenceUrl} target="_blank" rel="noreferrer">Open result register ↗</a></div>
+              <div className="outcome-decision-list">
+                {summary.meetingOutcomes.map((item) => (
                   <article key={item.id}>
-                    <div><Badge tone="healthy">{item.recommendation}</Badge><span>{item.id}</span></div>
-                    <h3>{item.activation}</h3>
-                    <p>{item.learning}</p>
-                    <dl><dt>Proof</dt><dd>{item.actual} {item.unit} vs {item.target} target</dd><dt>Reusable asset</dt><dd>{item.reusableAsset}</dd><dt>Regional path</dt><dd>{item.originRegion} → {item.regionsReusing.join(", ")}</dd><dt>Standard</dt><dd>{item.playbook}</dd></dl>
+                    <div className="outcome-call"><Badge tone={item.recommendation === "Stop" ? "critical" : item.recommendation === "Adjust" ? "watch" : "healthy"}>{item.recommendation === "Stop" ? "Do not repeat" : item.recommendation === "Adjust" ? "Fix first" : "Expand"}</Badge><small>{item.id}</small></div>
+                    <div className="outcome-subject"><h3>{item.activation}</h3><p>{item.pillar} · {item.originRegion} · {item.owner}</p><small>{item.strategicOutcome}</small></div>
+                    <div className="outcome-proof"><span>{item.successMetric}</span><b>{item.actual} <small>actual</small> / {item.target} <small>required</small></b><p>{money(item.cost)} delivery cost</p></div>
+                    <div className="outcome-action"><span>Prepared call</span><p>{item.preparedCall}</p><small>System update: {item.playbook}</small></div>
                   </article>
                 ))}
               </div>
             </section>
 
-            <section className="handbook-shell">
-              <div className="handbook-intro"><p className="eyebrow">LIVING ACTIVATION HANDBOOK</p><h2>Repeat the quality.<br />Localize the delivery.</h2><p>The handbook defines the common gates every region follows. Outcome evidence decides which formats enter the pattern library and what changes next.</p></div>
-              <div className="lifecycle-list">
-                {activationLifecycle.map((step) => <article key={step.id}><span>{step.id}</span><div><small>{step.timing}</small><h3>{step.stage}</h3><p>{step.practice}</p></div></article>)}
-              </div>
-            </section>
-
-            <section className="handbook-rules panel">
-              <div><p className="eyebrow">NON-NEGOTIABLES</p><h2>Rules that make learning portable</h2></div>
-              <ol>{handbookRules.map((rule, index) => <li key={rule}><span>{String(index + 1).padStart(2, "0")}</span><p>{rule}</p></li>)}</ol>
-            </section>
-
-            <section className="playbook-library panel">
-              <div className="panel-heading"><div><p className="eyebrow">APPROVED OPERATING ASSETS</p><h2>Playbooks connected to the activation lifecycle</h2></div><Badge tone="neutral">{data.totals.totalPlaybooks} total · {data.playbooks.length} shown</Badge></div>
-              <div>{data.playbooks.map((playbook) => <article key={playbook.id}><div><b>{playbook.title}</b><small>{playbook.pillar}</small></div><span>{playbook.useCount90d} uses / 90d</span><Badge tone={playbook.status === "Current" ? "healthy" : playbook.status === "Needs Update" ? "critical" : "watch"}>{playbook.status}</Badge><small>Next review {shortDate(playbook.nextReview)}</small></article>)}</div>
+            <section className="panel operating-change-map">
+              <div><p className="eyebrow">HANDBOOK = THE SYSTEM CHANGE</p><h2>The meeting is not finished until a tracker or playbook changes.</h2></div>
+              <div className="change-rule-grid"><article><Badge tone="critical">Stop</Badge><p>Cancel repeat instances and record the replacement format.</p></article><article><Badge tone="watch">Adjust</Badge><p>Add the required change to the readiness gate before reopening registration.</p></article><article><Badge tone="healthy">Scale</Badge><p>Name the next region, local owner, date, and approved reusable asset.</p></article><article><Badge tone="healthy">Standardize</Badge><p>Update the default checklist or playbook and communicate the new standard.</p></article></div>
             </section>
           </div>
         )}
@@ -500,7 +479,7 @@ export default function Home() {
               </div>
               <div>
                 <Badge tone="healthy">Grounded in current source snapshot</Badge>
-                <p>Ask a plain-language question. The copilot answers from the same risks, outcomes, regional learnings, calendar, budget, owners, and handbook used by the dashboard.</p>
+                <p>Ask a plain-language question. The copilot answers from the same risks, developer results, calendar, budget, owners, and playbook changes used by the dashboard.</p>
               </div>
             </section>
 
@@ -586,7 +565,7 @@ export default function Home() {
         )}
       </section>
 
-      <footer><span>Developer Ecosystem Operations</span><span>Source-backed operating data · Nemotron-ready</span><span>Outcomes · learning · decisions · repeatable practice</span></footer>
+      <footer><span>Developer Ecosystem Operations</span><span>Source-backed operating data · Nemotron-ready</span><span>Developer results · decisions · operating changes</span></footer>
     </main>
   );
 }

@@ -22,18 +22,18 @@ const utilization = [0.88, 0.82, 0.79, 0.74, 0.91, 0.86, 0.83, 0.77, 0.49, 0.69,
 const recommendations = ["Increase", "Hold", "Hold", "Optimize", "Increase", "Increase", "Hold", "Hold", "Redirect", "Optimize", "Increase", "Optimize", "Hold", "Increase", "Increase", "Optimize", "Redirect", "Increase", "Increase", "Increase", "Optimize", "Redirect", "Hold", "Redirect"];
 
 const pipeline = [
-  ["ACT-001", "San Jose Developer Workshop 01", "Americas", "Community", "Partners"],
-  ["ACT-002", "Sydney University Bootcamp 88", "APAC", "Open Models", "Students"],
-  ["ACT-003", "Global Developer Workshop 13", "Global", "Community", "Students"],
-  ["ACT-004", "London University Bootcamp 82", "EMEA", "Open Models", "Maintainers"],
-  ["ACT-005", "Sydney Community Meetup 36", "APAC", "Open Source Foundations", "Partners"],
-  ["ACT-006", "Tokyo Maintainer Roundtable 59", "APAC", "CUDA", "Developers"],
-  ["ACT-007", "Paris Build Day 71", "EMEA", "CUDA", "Partners"],
-  ["ACT-008", "Singapore Technical Office Hours 48", "APAC", "Open Source Foundations", "Students"],
-  ["ACT-009", "Toronto Agentic AI Clinic 94", "Americas", "Open Models", "Developers"],
-  ["ACT-010", "Global Maintainer Roundtable 65", "Global", "CUDA", "Developers"],
-  ["ACT-011", "Paris Partner Enablement Lab 19", "EMEA", "Community", "Developers"],
-  ["ACT-012", "Toronto Technical Office Hours 42", "Americas", "Open Source Foundations", "Maintainers"],
+  ["ACT-001", "San Jose Developer Build Lab", "Americas", "Community", "Partners"],
+  ["ACT-002", "Sydney Open Models Evaluation Lab", "APAC", "Open Models", "Students"],
+  ["ACT-003", "Global Community Build Workshop", "Global", "Community", "Students"],
+  ["ACT-004", "London Model Fine-Tuning Bootcamp", "EMEA", "Open Models", "Maintainers"],
+  ["ACT-005", "Sydney Maintainer Community Meetup", "APAC", "Open Source Foundations", "Partners"],
+  ["ACT-006", "Tokyo CUDA Optimization Lab", "APAC", "CUDA", "Developers"],
+  ["ACT-007", "Paris CUDA Build Day", "EMEA", "CUDA", "Partners"],
+  ["ACT-008", "Singapore Maintainer Technical Office Hours", "APAC", "Open Source Foundations", "Students"],
+  ["ACT-009", "Toronto Open Models Adoption Clinic", "Americas", "Open Models", "Developers"],
+  ["ACT-010", "Global CUDA Performance Clinic", "Global", "CUDA", "Developers"],
+  ["ACT-011", "Paris Partner Enablement Lab", "EMEA", "Community", "Developers"],
+  ["ACT-012", "Toronto Maintainer Office Hours", "Americas", "Open Source Foundations", "Maintainers"],
 ];
 
 function gpuRate(product: string) {
