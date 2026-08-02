@@ -52,12 +52,18 @@ function shortDate(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(year, month - 1, day));
 }
 
-function reviewWeek(data: OpsData) {
+function reviewStart(data: OpsData) {
   const earliest = [...data.activations].sort((a, b) => a.date.localeCompare(b.date))[0]?.date;
-  if (!earliest) return "CURRENT OPERATING REVIEW";
+  if (!earliest) return null;
   const [year, month, day] = earliest.split("-").map(Number);
   const date = new Date(year, month - 1, day);
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  date.setDate(date.getDate() + ((8 - date.getDay()) % 7));
+  return date;
+}
+
+function reviewWeek(data: OpsData) {
+  const date = reviewStart(data);
+  if (!date) return "CURRENT OPERATING REVIEW";
   return `WEEK OF ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date).toUpperCase()} · OPERATING REVIEW`;
 }
 
@@ -105,7 +111,33 @@ export default function Home() {
     const totalCommitted = data.budgets.reduce((sum, row) => sum + row.committed, 0);
     const sortedAttention = [...data.attention].sort((a, b) => severityRank(a) - severityRank(b) || (a.due || "9999-12-31").localeCompare(b.due || "9999-12-31"));
     const activationRiskCount = data.activations.filter((item) => item.status !== "On Track").length;
-    const decisionItems = sortedAttention.slice(0, 3).map((item, index) => ({
+    const start = reviewStart(data);
+    const end = start ? new Date(start) : null;
+    end?.setDate(end.getDate() + 13);
+    const activationRank = (status: string) => status === "Blocked" ? 0 : status === "At Risk" ? 1 : status === "Watch" ? 2 : 3;
+    const priorityActivations = [...data.activations]
+      .filter((item) => {
+        if (!start || !end) return true;
+        const date = new Date(`${item.date}T12:00:00`);
+        return date >= start && date <= end;
+      })
+      .sort((a, b) => activationRank(a.status) - activationRank(b.status) || a.date.localeCompare(b.date))
+      .slice(0, 12);
+    const capacityDecision = sortedAttention.find((item) => item.source === "Jira" && item.tags.includes("capacity"));
+    const readinessDecision = sortedAttention.find((item) => item.source === "Jira" && item.tags.includes("readiness"));
+    const budgetDecision = sortedAttention
+      .filter((item) => item.source === "Google Sheets")
+      .sort((a, b) => {
+        const budgetA = data.budgets.find((row) => row.pillar === a.pillar);
+        const budgetB = data.budgets.find((row) => row.pillar === b.pillar);
+        return ((budgetB?.forecast || 0) - (budgetB?.budget || 0)) - ((budgetA?.forecast || 0) - (budgetA?.budget || 0));
+      })[0];
+    const selected = [capacityDecision, readinessDecision, budgetDecision].filter((item): item is AttentionItem => Boolean(item));
+    for (const item of sortedAttention) {
+      if (selected.length >= 3) break;
+      if (!selected.some((selectedItem) => selectedItem.source === item.source && selectedItem.id === item.id)) selected.push(item);
+    }
+    const decisionItems = selected.slice(0, 3).map((item, index) => ({
       id: String(index + 1).padStart(2, "0"),
       question: item.title,
       why: item.reason,
@@ -115,7 +147,7 @@ export default function Home() {
       source: item.source,
       sourceId: item.id,
     }));
-    return { totalBudget, totalForecast, totalCommitted, sortedAttention, activationRiskCount, decisionItems };
+    return { totalBudget, totalForecast, totalCommitted, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
   }, [data]);
 
   async function copyBrief() {
@@ -206,7 +238,7 @@ export default function Home() {
         {data && summary && view === "overview" && (
           <div className="view-content">
             <section className="metric-grid ops-metrics" aria-label="Portfolio summary">
-              <article className="metric-card primary-metric"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} upcoming at risk</span></article>
+              <article className="metric-card primary-metric"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} monthly exceptions</span></article>
               <article className="metric-card"><span className="metric-label">Roadmap items</span><strong>{data.totals.jiraItems}</strong><span className="delta critical-text">{data.totals.jiraBlocked} blocked · {data.totals.jiraOverdue} overdue</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
               <article className="metric-card"><span className="metric-label">Operational playbooks</span><strong>{data.totals.totalPlaybooks}</strong><span className="delta warning-text">{data.totals.playbooksNeedingReview} need review</span></article>
@@ -263,10 +295,10 @@ export default function Home() {
             </section>
 
             <section className="panel portfolio-panel">
-              <div className="panel-heading"><div><p className="eyebrow">NEXT 14 DAYS · SMARTSHEET BRIDGE</p><h2>Activation calendar</h2></div><Badge tone="healthy">{data.activations.length} source rows</Badge></div>
+              <div className="panel-heading"><div><p className="eyebrow">PRIORITY WINDOW · NEXT 14 DAYS</p><h2>Activation calendar</h2></div><Badge tone="healthy">{summary.priorityActivations.length} shown · {data.activations.length} monthly</Badge></div>
               <div className="calendar-table">
                 <div className="calendar-row calendar-head"><span>Date</span><span>Activation</span><span>Pillar / region</span><span>Owner</span><span>Status</span><span>Next action</span><span>Budget</span></div>
-                {data.activations.map((item) => (
+                {summary.priorityActivations.map((item) => (
                   <div className="calendar-row" key={item.id}>
                     <b>{shortDate(item.date)}</b><div><strong>{item.name}</strong>{item.risk !== "None" && <small>{item.risk}</small>}</div><div><span>{item.pillar}</span><small>{item.region}</small></div><span>{item.owner}</span><Badge tone={item.status === "On Track" ? "healthy" : item.status === "Blocked" ? "critical" : "watch"}>{item.status}</Badge><p>{item.nextAction}</p><b>{money(item.budget)}</b>
                   </div>

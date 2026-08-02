@@ -70,5 +70,9 @@ test("normalizes formatted budget currency from source payloads", async () => {
   const payload = await response.json();
   assert.equal(payload.budgets[0].budget, 520000);
   assert.equal(payload.budgets[0].forecast, 568000);
-  assert.equal(payload.totals.monthlyActivations, 8);
+  assert.equal(payload.totals.monthlyActivations, 112);
+  assert.equal(payload.totals.jiraItems, 47);
+  assert.equal(payload.totals.jiraBlocked, 6);
+  assert.equal(payload.totals.jiraOverdue, 5);
+  assert.equal(payload.budgets[0].recommendation.includes("regional delivery"), true);
 });

@@ -22,6 +22,7 @@ export type AttentionItem = {
   owner: string;
   due: string;
   severity: "Critical" | "Watch" | "Review";
+  tags: string[];
 };
 
 export type Activation = {
@@ -47,6 +48,7 @@ export type BudgetRow = {
   status: string;
   note: string;
   decisionDue: string;
+  recommendation: string;
 };
 
 export type Playbook = {
@@ -140,6 +142,7 @@ export function normalizeOpsPayload(
       status: values.Status,
       note: values.Note,
       decisionDue: values["Decision Due"] || "",
+      recommendation: values["Prepared Recommendation"] || "",
     };
   });
 
@@ -155,6 +158,7 @@ export function normalizeOpsPayload(
       owner: issue.fields.assignee?.displayName || "Unassigned",
       due: issue.fields.duedate || "",
       severity: severityFromJira(issue.fields),
+      tags: issue.fields.labels,
     }));
 
   const activationAttention: AttentionItem[] = activations
@@ -169,6 +173,7 @@ export function normalizeOpsPayload(
       owner: activation.owner,
       due: activation.date,
       severity: activation.status === "Blocked" ? "Critical" as const : "Watch" as const,
+      tags: ["activation", activation.status.toLowerCase().replace(" ", "-")],
     }));
 
   const budgetAttention: AttentionItem[] = budgets
@@ -179,10 +184,11 @@ export function normalizeOpsPayload(
       pillar: row.pillar,
       title: `${row.pillar} budget forecast`,
       reason: row.note,
-      nextAction: row.forecast > row.budget ? "Review forecast and offset options" : "Confirm remaining-quarter plan",
+      nextAction: row.recommendation || (row.forecast > row.budget ? "Review forecast and offset options" : "Confirm remaining-quarter plan"),
       owner: row.owner,
       due: row.decisionDue,
       severity: row.forecast > row.budget * 1.05 ? "Watch" as const : "Review" as const,
+      tags: ["budget", "forecast"],
     }));
 
   const documentAttention: AttentionItem[] = docs.documents
@@ -197,6 +203,7 @@ export function normalizeOpsPayload(
       owner: doc.owner,
       due: doc.nextReview,
       severity: "Review" as const,
+      tags: ["playbook", "document-review"],
     }));
 
   return {

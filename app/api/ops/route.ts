@@ -13,13 +13,58 @@ type ConnectorResult = {
   health: SourceHealth;
 };
 
+function expandedJiraSample(base: any) {
+  const pillars = ["Community", "Developer Advocacy", "Developer / Agent Experience", "Open Models", "CUDA", "Open Source Foundations"];
+  const owners: Record<string, string> = { Community: "Amina Diallo", "Developer Advocacy": "Noah Williams", "Developer / Agent Experience": "Maya Chen", "Open Models": "Diego Ruiz", CUDA: "Priya Nair", "Open Source Foundations": "Elena Park" };
+  const topics = ["facilitator coverage", "content review", "support routing", "benchmark governance", "lab readiness", "maintainer engagement"];
+  const generated = Array.from({ length: 39 }, (_, index) => {
+    const pillar = pillars[index % pillars.length];
+    const blocked = index < 5;
+    const overdue = index >= 5 && index < 9;
+    const weekly = blocked || overdue || index < 12;
+    const status = blocked ? "Blocked" : overdue ? "In Review" : index < 16 ? "Decision Needed" : index < 28 ? "In Progress" : index < 33 ? "Waiting" : "To Do";
+    const priority = blocked ? "Highest" : overdue || index < 16 ? "High" : index < 30 ? "Medium" : "Low";
+    const due = overdue ? `2026-07-${String(27 + index - 5).padStart(2, "0")}` : `2026-08-${String(10 + ((index * 3) % 20)).padStart(2, "0")}`;
+    const topic = topics[index % topics.length];
+    return { id: String(10700 + index), key: `OPS-${700 + index}`, fields: {
+      summary: `${blocked ? "Unblock" : status === "Decision Needed" ? "Decide" : "Advance"} ${topic}`,
+      status: { name: status }, priority: { name: priority }, assignee: { displayName: owners[pillar] }, duedate: due,
+      labels: [weekly ? "weekly-review" : "portfolio", topic.split(" ")[0], blocked ? "dependency" : "execution"],
+      customfield_pillar: pillar,
+      customfield_decision: blocked ? `Approve the recovery owner and tradeoff for ${topic}` : status === "Decision Needed" ? `Choose the owner and operating standard for ${topic}` : "No leadership decision required",
+      customfield_reason: blocked ? `${topic} is blocking a committed external milestone across two teams` : overdue ? `${topic} missed its source due date and now affects the next activation window` : `${topic} is progressing within the normal operating workflow`,
+    }};
+  });
+  return { ...base, total: 47, summary: { blocked: 6, overdue: 5 }, issues: [...base.issues, ...generated] };
+}
+
+function expandedSmartsheetSample(base: any) {
+  const pillars = ["Community", "Developer Advocacy", "Developer / Agent Experience", "Open Models", "CUDA", "Open Source Foundations"];
+  const owners = ["Amina Diallo", "Noah Williams", "Maya Chen", "Diego Ruiz", "Priya Nair", "Elena Park"];
+  const cities = ["San Jose", "New York", "London", "Munich", "Tokyo", "Seoul", "Singapore", "Sydney", "Bengaluru", "Dubai", "Toronto", "Paris", "Global"];
+  const generated = Array.from({ length: 104 }, (_, index) => {
+    const status = index < 3 ? "Blocked" : index < 10 ? "At Risk" : index < 28 ? "Watch" : "On Track";
+    const values: Record<string, string | number> = {
+      Activation: `${cities[index % cities.length]} Developer Activation ${String(index + 1).padStart(2, "0")}`,
+      Date: `2026-08-${String(1 + ((index * 5 + Math.floor(index / 8) * 3) % 31)).padStart(2, "0")}`,
+      Region: index % 4 === 0 ? "Americas" : index % 4 === 1 ? "EMEA" : index % 4 === 2 ? "APAC" : "Global",
+      Pillar: pillars[index % pillars.length], Owner: owners[index % owners.length], Status: status,
+      Risk: status === "On Track" ? "None" : status === "Blocked" ? "Required technical approval is incomplete" : status === "At Risk" ? "Primary facilitator or lab capacity is not yet confirmed" : "Registration, asset readiness, or partner confirmation is behind plan",
+      "Next Action": status === "On Track" ? "Complete the standard readiness checklist" : status === "Blocked" ? "Name the approving owner and complete the release gate" : "Close the open readiness item at the weekly checkpoint",
+      Budget: 7000 + ((index * 3700) % 46000),
+    };
+    return { id: 1200 + index, cells: base.columns.map((column: any) => ({ columnId: column.id, value: values[column.title] ?? "" })) };
+  });
+  return { ...base, totalRowCount: 112, rows: [...base.rows, ...generated] };
+}
+
 function health(name: SourceName, mode: SourceHealth["mode"], status: string, recordCount: number): SourceHealth {
   return { name, mode, status, recordCount, refreshedAt: new Date().toISOString() };
 }
 
 const samples = {
-  "jira-issues.json": jiraSample,
-  "smartsheet-activations.json": smartsheetSample,
+  "jira-issues.json": expandedJiraSample(jiraSample),
+  "smartsheet-activations.json": expandedSmartsheetSample(smartsheetSample),
   "google-sheet-budget.json": budgetSample,
   "playbook-documents.json": documentsSample,
 } as const;
@@ -138,7 +183,7 @@ async function jiraConnector(): Promise<ConnectorResult> {
       const table = await fetchPublicSheet(
         demoSheetId!,
         process.env.JIRA_DEMO_SHEET_NAME || "Dashboard Contract",
-        process.env.JIRA_DEMO_RANGE || "A8:M16",
+        process.env.JIRA_DEMO_RANGE || "A8:M55",
       );
       const issues = recordsFromTable(table).map((row) => ({
         key: row["Issue Key"],
@@ -199,7 +244,7 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
     if (!useVendorApi) {
       const sheetName = process.env.SMARTSHEET_DEMO_SHEET_NAME || "Activation Calendar";
       const [table, totalTable] = await Promise.all([
-        fetchPublicSheet(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_RANGE || "A7:O15"),
+        fetchPublicSheet(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_RANGE || "A7:O119"),
         fetchPublicSheetRange(demoSheetId!, sheetName, process.env.SMARTSHEET_DEMO_TOTAL_RANGE || "B3"),
       ]);
       const monthlyTotal = numeric(totalTable[0]?.[0] || "");
@@ -213,6 +258,7 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
           value: title === "Date" ? dateOnly(row[title]) : title === "Budget" ? numeric(row[title]) : row[title],
         })),
       }));
+      if (monthlyTotal !== rows.length) throw new Error(`Smartsheet bridge total ${monthlyTotal} does not match ${rows.length} detailed rows`);
       return { totalRowCount: monthlyTotal, columns, rows };
     }
     const response = await fetch(`https://api.smartsheet.com/2.0/sheets/${sheetId!}`, { headers: { Authorization: `Bearer ${token!}` } });
@@ -224,7 +270,7 @@ async function smartsheetConnector(): Promise<ConnectorResult> {
 async function googleSheetsConnector(): Promise<ConnectorResult> {
   const sheetId = process.env.GOOGLE_SHEET_ID;
   const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
-  const range = process.env.GOOGLE_BUDGET_RANGE || "FY27 Q3 Budget!A1:L";
+  const range = process.env.GOOGLE_BUDGET_RANGE || "FY27 Q3 Budget!A1:M";
   const publicSheetId = process.env.GOOGLE_BUDGET_SHEET_ID;
   const useValuesApi = Boolean(sheetId && apiKey);
   return withFallback("Google Sheets", "google-sheet-budget.json", Boolean(useValuesApi || publicSheetId), async () => {
@@ -238,10 +284,10 @@ async function googleSheetsConnector(): Promise<ConnectorResult> {
     const table = await fetchPublicSheet(
       publicSheetId!,
       process.env.GOOGLE_BUDGET_SHEET_NAME || "FY27 Q3 Budget",
-      process.env.GOOGLE_BUDGET_PUBLIC_RANGE || "A1:L7",
+      process.env.GOOGLE_BUDGET_PUBLIC_RANGE || "A1:M7",
     );
     const values = [table[0], ...table.slice(1).map((row) => row.map((value, index) => index >= 1 && index <= 4 ? String(numeric(value)) : value))];
-    return { range: "FY27 Q3 Budget!A1:L7", majorDimension: "ROWS", values };
+    return { range: "FY27 Q3 Budget!A1:M7", majorDimension: "ROWS", values };
   }, (data) => Math.max((data.values?.length || 1) - 1, 0), "live", useValuesApi ? "Google Sheets Values API v4 loaded with a restricted server-side API key" : "Connected read-only budget Sheet");
 }
 
