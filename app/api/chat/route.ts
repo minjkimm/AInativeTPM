@@ -227,7 +227,8 @@ export async function POST(request: Request) {
       const answer = payload.choices?.[0]?.message?.content;
       if (!answer) throw new Error("NVIDIA NIM returned no answer");
       return Response.json({ answer, evidence: demo.evidence, mode: "nemotron", model });
-    } catch {
+    } catch (error) {
+      console.error("NVIDIA NIM fallback", error instanceof Error ? error.message : "Unknown NIM error");
       return Response.json({ ...demo, mode: "fallback", model: "Nemotron unavailable · demo analysis used" });
     }
   } catch (error) {
