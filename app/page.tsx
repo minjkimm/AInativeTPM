@@ -224,20 +224,25 @@ export default function Home() {
           </div>
         </div>
 
-        <nav className="view-tabs six-tabs" aria-label="Dashboard views">
-          {([
-            ["overview", "Overview", "attention first"],
-            ["portfolio", "Calendar + budget", "cross-pillar"],
-            ["outcomes", "Outcomes + handbook", "learn and reuse"],
-            ["meeting", "Monday review", "decision queue"],
-            ["copilot", "Executive copilot", "ask the data"],
-            ["sources", "Data sources", "source lineage"],
-          ] as const).map(([id, label, detail]) => (
-            <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)} aria-pressed={view === id}>
-              <span>{label}</span><small>{detail}</small>
-            </button>
-          ))}
-        </nav>
+        <div className="navigation-stack">
+          <nav className="view-tabs four-tabs primary-tabs" aria-label="Primary dashboard views">
+            {([
+              ["overview", "Overview", "attention first"],
+              ["portfolio", "Calendar + budget", "cross-pillar"],
+              ["outcomes", "Outcomes + handbook", "learn and reuse"],
+              ["meeting", "Monday review", "decision queue"],
+            ] as const).map(([id, label, detail]) => (
+              <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)} aria-pressed={view === id}>
+                <span>{label}</span><small>{detail}</small>
+              </button>
+            ))}
+          </nav>
+          <nav className="utility-rail" aria-label="Supporting dashboard tools">
+            <span>Supporting tools</span>
+            <button className={view === "copilot" ? "active" : ""} onClick={() => setView("copilot")} aria-pressed={view === "copilot"}><b>Executive copilot</b><small>Ask grounded data</small><i>→</i></button>
+            <button className={view === "sources" ? "active" : ""} onClick={() => setView("sources")} aria-pressed={view === "sources"}><b>Data sources</b><small>Connection health + lineage</small><i>→</i></button>
+          </nav>
+        </div>
 
         {error && <div className="load-error"><b>Data refresh failed.</b> {error} <button onClick={() => void refresh()}>Try again</button></div>}
         {!data && !error && <div className="loading-state">Loading source data…</div>}
