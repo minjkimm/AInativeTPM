@@ -284,7 +284,7 @@ export function normalizeOpsPayload(
   const activationAttention: AttentionItem[] = activations
     .filter((activation) => activation.status !== "On Track")
     .map((activation) => ({
-      id: `ACT-${activation.id}`,
+      id: activation.activationId,
       source: "Smartsheet" as const,
       pillar: activation.pillar,
       title: activation.name,
