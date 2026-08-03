@@ -63,7 +63,9 @@ test("keeps the production source adapters and removes starter assets", async ()
   assert.match(page, /requires every account team to submit the same evaluation worksheet/);
   assert.doesNotMatch(page, /only after this change/);
   assert.doesNotMatch(page, /Met or exceeded target/);
+  assert.doesNotMatch(page, /Weekly digest|Slack webhook|GitHub Actions schedule/);
   assert.match(layout, /title:\s*"Developer Ecosystem Operations"/);
+  assert.doesNotMatch(packageJson, /"digest"/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview/SkeletonPreview.tsx", import.meta.url)));
 });

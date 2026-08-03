@@ -544,24 +544,13 @@ export default function Home() {
                 <i>→</i>
                 <div className="adapter-core"><span>Normalize</span><code>id<br />type<br />pillar<br />owner<br />status<br />due date<br />reason<br />next action<br />source</code></div>
                 <i>→</i>
-                <div className="adapter-outputs"><span>Attention queue</span><span>Calendar + budget</span><span>Monday brief</span><span>Weekly digest</span></div>
+                <div className="adapter-outputs"><span>Attention queue</span><span>Calendar + budget</span><span>Results + playbook</span><span>Executive copilot</span></div>
               </div>
             </section>
 
             <section className="implementation-steps">
               <div><p className="eyebrow">FROM SAMPLE TO REAL</p><h2>A credential change,<br />not a dashboard rebuild.</h2></div>
-              <ol><li><span>01</span><div><b>Confirm source ownership</b><p>Which system is authoritative for calendar, roadmap, budget, and playbooks?</p></div></li><li><span>02</span><div><b>Use a secure server-side proxy</b><p>Jira and Smartsheet tokens never reach the browser. A published Google Sheet can be read directly if appropriate.</p></div></li><li><span>03</span><div><b>Map only decision fields</b><p>Normalize owner, status, date, risk, reason, next action, and source ID.</p></div></li><li><span>04</span><div><b>Automate the rhythm</b><p>Refresh on schedule, generate the Monday brief, and post exceptions to the team channel.</p></div></li></ol>
-            </section>
-
-            <section className="adapter-map panel">
-              <div className="panel-heading"><div><p className="eyebrow">AUTOMATED DELIVERY PATH</p><h2>Monday output without manual reporting</h2></div><Badge tone="healthy">GitHub-ready</Badge></div>
-              <div className="adapter-flow">
-                <div className="adapter-inputs"><span>Jira REST API</span><span>Smartsheet API</span><span>Google Sheets API</span><span>Drive metadata</span></div>
-                <i>→</i>
-                <div className="adapter-core"><span>Server route</span><code>/api/ops<br />authenticate<br />normalize<br />rank exceptions<br />remove secrets</code></div>
-                <i>→</i>
-                <div className="adapter-outputs"><span>Dashboard refresh</span><span>Monday decision brief</span><span>GitHub Actions schedule</span><span>Slack webhook delivery</span></div>
-              </div>
+              <ol><li><span>01</span><div><b>Confirm source ownership</b><p>Which system is authoritative for calendar, roadmap, budget, and playbooks?</p></div></li><li><span>02</span><div><b>Use a secure server-side proxy</b><p>Jira and Smartsheet tokens never reach the browser. A published Google Sheet can be read directly if appropriate.</p></div></li><li><span>03</span><div><b>Map only decision fields</b><p>Normalize owner, status, date, risk, reason, next action, and source ID.</p></div></li><li><span>04</span><div><b>Run a decision-focused review</b><p>Use the dashboard as the pre-read, then record the decision, owner, due date, and required operating change.</p></div></li></ol>
             </section>
 
             <section className="honesty-note"><span>Important</span><p>This public interview deployment uses read-only synthetic Google Sheets as connected demo feeds. The Jira and Smartsheet vendor adapters remain implemented but are not labeled live until approved vendor credentials are present. Credentials stay server-side.</p></section>
