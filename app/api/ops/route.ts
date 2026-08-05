@@ -43,16 +43,34 @@ function expandedJiraSample(base: any) {
 function expandedSmartsheetSample(base: any) {
   const pillars = ["Community", "Developer Advocacy", "Developer / Agent Experience", "Open Models", "CUDA", "Open Source Foundations"];
   const owners = ["Amina Diallo", "Noah Williams", "Maya Chen", "Diego Ruiz", "Priya Nair", "Elena Park"];
-  const cities = ["San Jose", "New York", "London", "Munich", "Tokyo", "Seoul", "Singapore", "Sydney", "Bengaluru", "Dubai", "Toronto", "Paris", "Global"];
+  const locations = [
+    ["San Jose", "Americas"], ["New York", "Americas"], ["London", "EMEA"], ["Munich", "EMEA"],
+    ["Tokyo", "APAC"], ["Seoul", "APAC"], ["Singapore", "APAC"], ["Sydney", "APAC"],
+    ["Bengaluru", "APAC"], ["Dubai", "EMEA"], ["Toronto", "Americas"], ["Paris", "EMEA"], ["Global", "Global"],
+  ];
+  const readinessByPillar: Record<string, { risk: string; nextAction: string }> = {
+    Community: { risk: "Lab staffing covers 70 developers, but 120 are registered; two backup facilitators are unconfirmed", nextAction: "Confirm two backup facilitators or cap registration at 105 before the final reminder" },
+    "Developer Advocacy": { risk: "Tutorial and demo claims are waiting on technical review, so localization cannot start", nextAction: "Assign the technical reviewer and approve the claims package before the publishing gate" },
+    "Developer / Agent Experience": { risk: "No escalation owner is assigned for authentication and API failures in the onboarding lab", nextAction: "Name the support escalation owner and complete the failure-path dry run" },
+    "Open Models": { risk: "NIM endpoint validation and the partner evaluation worksheet are incomplete", nextAction: "Validate the endpoint and approve the evaluation worksheet before partner invitations" },
+    CUDA: { risk: "The CUDA lab image has not passed the reproducibility test on the target GPU", nextAction: "Run the target-GPU dry run and publish the validated lab image" },
+    "Open Source Foundations": { risk: "The maintainer agenda lists governance topics but no decision owner or pre-read", nextAction: "Assign an owner to each decision and publish the pre-read seven days before the session" },
+  };
   const generated = Array.from({ length: 104 }, (_, index) => {
     const status = index < 3 ? "Blocked" : index < 10 ? "At Risk" : index < 28 ? "Watch" : "On Track";
+    const [city, region] = locations[index % locations.length];
+    const pillar = pillars[index % pillars.length];
+    const readiness = readinessByPillar[pillar];
+    const activationRisk = city === "Sydney" && status === "At Risk"
+      ? { risk: "Two localized tutorial examples are still in review; the core technical content is approved", nextAction: "Confirm the two edits by Wednesday or use the approved English examples as the fallback" }
+      : readiness;
     const values: Record<string, string | number> = {
-      Activation: `${cities[index % cities.length]} Developer Activation ${String(index + 1).padStart(2, "0")}`,
+      Activation: `${city} Developer Activation ${String(index + 1).padStart(2, "0")}`,
       Date: `2026-08-${String(1 + ((index * 5 + Math.floor(index / 8) * 3) % 31)).padStart(2, "0")}`,
-      Region: index % 4 === 0 ? "Americas" : index % 4 === 1 ? "EMEA" : index % 4 === 2 ? "APAC" : "Global",
-      Pillar: pillars[index % pillars.length], Owner: owners[index % owners.length], Status: status,
-      Risk: status === "On Track" ? "None" : status === "Blocked" ? "Required technical approval is incomplete" : status === "At Risk" ? "Primary facilitator or lab capacity is not yet confirmed" : "Registration, asset readiness, or partner confirmation is behind plan",
-      "Next Action": status === "On Track" ? "Complete the standard readiness checklist" : status === "Blocked" ? "Name the approving owner and complete the release gate" : "Close the open readiness item at the weekly checkpoint",
+      Region: region,
+      Pillar: pillar, Owner: owners[index % owners.length], Status: status,
+      Risk: status === "On Track" ? "None" : activationRisk.risk,
+      "Next Action": status === "On Track" ? "Complete the standard readiness checklist" : activationRisk.nextAction,
       Budget: 7000 + ((index * 3700) % 46000),
     };
     return { id: 1200 + index, cells: base.columns.map((column: any) => ({ columnId: column.id, value: values[column.title] ?? "" })) };

@@ -113,7 +113,7 @@ export function syntheticGpuSeeds() {
       id: `PIPE-${String(index + 1).padStart(3, "0")}`,
       activationId,
       outcomeId: "",
-      quarter: "FY27 Q3 Pipeline",
+      quarter: "FY27 Q4 Pipeline",
       activation,
       region,
       pillar,

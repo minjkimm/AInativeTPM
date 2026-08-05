@@ -24,15 +24,15 @@
       "id": "10002",
       "key": "OPS-118",
       "fields": {
-        "summary": "Complete August program readiness review",
+        "summary": "Complete September program readiness review",
         "status": { "name": "In Progress" },
         "priority": { "name": "High" },
         "assignee": { "displayName": "Diego Ruiz" },
-        "duedate": "2026-08-07",
+        "duedate": "2026-08-21",
         "labels": ["weekly-review", "readiness"],
         "customfield_pillar": "Open Models",
-        "customfield_decision": "Prioritize two launches and assign a backup reviewer",
-        "customfield_reason": "Four launches share the same review team and two readiness packets are incomplete"
+        "customfield_decision": "Prioritize the two September launches and assign a backup reviewer by August 21",
+        "customfield_reason": "Four September launches share the same review team and two readiness packets are incomplete"
       }
     },
     {

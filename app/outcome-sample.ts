@@ -22,7 +22,7 @@ const configs: Record<string, { audience: string; outcome: string; metric: strin
   Community: { audience: "Developers", outcome: "Developers complete a guided build and commit to a next technical step", metric: "Qualified follow-up commitments", unit: "developers", target: 90, playbook: "Regional Delivery Playbook", asset: "Facilitator kit + lab guide" },
   "Developer Advocacy": { audience: "Content creators", outcome: "Technical creators publish or adapt accurate enablement content", metric: "Approved content packages", unit: "assets", target: 18, playbook: "Activation Readiness Checklist", asset: "Content brief + review rubric" },
   "Developer / Agent Experience": { audience: "Application developers", outcome: "Developers resolve onboarding friction and complete the first workflow", metric: "Completed onboarding workflows", unit: "developers", target: 70, playbook: "Cross-Pillar Risk Intake and Triage", asset: "Office-hours runbook + issue taxonomy" },
-  "Open Models": { audience: "Partners", outcome: "Partners complete a model evaluation and name the next adoption step", metric: "Completed partner evaluations", unit: "evaluations", target: 24, playbook: "Program Launch Readiness Checklist", asset: "Evaluation worksheet + model card guide" },
+  "Open Models": { audience: "Enterprise and technology partner teams", outcome: "External enterprise and technology teams complete a model evaluation and name the next adoption step", metric: "Completed external-team evaluations", unit: "evaluations", target: 24, playbook: "Program Launch Readiness Checklist", asset: "Evaluation worksheet + model card guide" },
   CUDA: { audience: "Technical developers", outcome: "Developers complete a performance lab and identify an optimization opportunity", metric: "Completed performance labs", unit: "developers", target: 65, playbook: "Technical Review and Approval Guide", asset: "Performance lab + facilitator notes" },
   "Open Source Foundations": { audience: "Maintainers", outcome: "Maintainers commit to a concrete governance or contribution action", metric: "Maintainer commitments", unit: "commitments", target: 14, playbook: "Maintainer Engagement Operating Guide", asset: "Maintainer agenda + decision log" },
 };
@@ -31,7 +31,7 @@ const names: Record<string, string[]> = {
   Americas: ["Austin Agent Builders Day", "Toronto Technical Content Lab", "San Jose Onboarding Clinic", "New York Model Evaluation Sprint", "Toronto CUDA Performance Lab", "Austin Maintainer Roundtable"],
   EMEA: ["Paris Community Lab", "Berlin Blueprint Workshop", "London Agent Experience Lab", "Munich Open Models Preview", "Paris CUDA Bootcamp", "London Foundation Working Session"],
   APAC: ["Seoul Developer Build Day", "Tokyo Developer Advocacy Summit", "Singapore DX Office Hours", "Bengaluru Partner Evaluation Lab", "Sydney Accelerated Computing Lab", "Tokyo Maintainer Summit"],
-  Global: ["Global Community Office Hours", "Global Content Creator Sprint", "Global Support Routing Pilot", "Global Model Card Workshop", "Global CUDA Clinic", "Global OSS Office Hours"],
+  Global: ["Global Community Office Hours", "Global Content Creator Sprint", "Global Support Routing Pilot", "Global Model Card Workshop", "Global CUDA Clinic", "Global Open-Source Software Office Hours"],
 };
 
 const statuses = ["Exceeded", "Met", "Met", "Mixed", "Met", "Exceeded", "Met", "Met", "Missed", "Met", "Exceeded", "Mixed", "Met", "Met", "Exceeded", "Met", "Mixed", "Met", "Met", "Exceeded", "Met", "Mixed", "Met", "Missed"];

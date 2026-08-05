@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { syntheticActivationOutcomes } from "./outcome-sample";
 import { syntheticGpuSeeds } from "./gpu-seeding-sample";
+import { syntheticActivationProxies, type ActivationProxy } from "./activation-proxy-sample";
 export type SourceName = "Jira" | "Smartsheet" | "Google Sheets" | "Documents";
 
 export type SourceMode = "live" | "bridge" | "sample" | "fallback";
@@ -127,6 +128,7 @@ export type OpsData = {
   activations: Activation[];
   outcomes: ActivationOutcome[];
   gpuSeeds: GpuSeed[];
+  activationProxies: ActivationProxy[];
   budgets: BudgetRow[];
   playbooks: Playbook[];
   sources: SourceHealth[];
@@ -314,16 +316,22 @@ export function normalizeOpsPayload(
   const gpuSeedAttention: AttentionItem[] = [...new Set(gpuSeeds.filter((seed) => seed.quarter.includes("Pipeline")).map((seed) => seed.pillar))]
     .map((pillar) => {
       const items = gpuSeeds.filter((seed) => seed.quarter.includes("Pipeline") && seed.pillar === pillar);
-      const requested = items.reduce((sum, seed) => sum + seed.requestedGpuHours, 0);
-      const granted = items.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
       const call = items.find((seed) => seed.recommendation === "Approve increase") || items[0];
       return {
         id: `GPU-${pillar}`,
         source: "Smartsheet" as const,
         pillar,
-        title: `${pillar} GPU seeding allocation`,
-        reason: `${requested.toLocaleString()} requested GPU hours vs ${granted.toLocaleString()} provisionally granted; ${call?.decisionReason || "review demand and evidence"}`,
-        nextAction: call?.recommendation === "Approve increase" ? "Approve incremental GPU seeding capacity for the linked Q3 activations" : call?.recommendation || "Review allocation",
+        title: `${pillar} Q4 GPU-seeding allocation`,
+        reason: call?.recommendation === "Approve increase"
+          ? "Meets Q4 seeding-change criteria: prior utilization cleared the 75% threshold, working prototypes were completed, and named demand exceeds provisional supply."
+          : call?.recommendation === "Optimize first"
+            ? "Does not yet meet the Q4 approval gate: setup or support readiness must be corrected before adding capacity."
+            : "Does not meet the Q4 seeding-change criteria: utilization or workload-conversion evidence is not yet sufficient.",
+        nextAction: call?.recommendation === "Approve increase"
+          ? "Approve the incremental Q4 GPU hours for the named activation cohorts from the GPU reserve"
+          : call?.recommendation === "Optimize first"
+            ? "Keep the Q4 allocation provisional until setup and support readiness pass the operating gate"
+            : "Hold the Q4 increase until the next cohort meets the utilization and workload-conversion threshold",
         owner: budgets.find((row) => row.pillar === pillar)?.owner || "Unassigned",
         due: budgets.find((row) => row.pillar === pillar)?.decisionDue || "2026-08-14",
         severity: call?.recommendation === "Approve increase" ? "Watch" as const : "Review" as const,
@@ -351,6 +359,7 @@ export function normalizeOpsPayload(
     activations,
     outcomes,
     gpuSeeds,
+    activationProxies: syntheticActivationProxies(),
     budgets,
     playbooks: docs.documents,
     sources,

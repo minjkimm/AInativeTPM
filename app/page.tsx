@@ -57,6 +57,12 @@ function money(value: number) {
   return `$${Math.round(value / 1000)}K`;
 }
 
+function gpuProductLabel(value: string) {
+  if (value.startsWith("H100")) return "H100 (Hopper GPU)";
+  if (value.startsWith("H200")) return "H200 (Hopper GPU, higher memory)";
+  return value;
+}
+
 function shortDate(value: string) {
   if (!value) return "No source date";
   const [year, month, day] = value.split("-").map(Number);
@@ -129,6 +135,11 @@ export default function Home() {
     const historicalUtilization = historicalGranted ? historicalConsumed / historicalGranted : 0;
     const pipelineRequested = pipelineSeeds.reduce((sum, seed) => sum + seed.requestedGpuHours, 0);
     const pipelineGranted = pipelineSeeds.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
+    const approvalSeeds = pipelineSeeds.filter((seed) => seed.recommendation === "Approve increase");
+    const holdSeeds = pipelineSeeds.filter((seed) => seed.recommendation !== "Approve increase");
+    const approvalRequested = approvalSeeds.reduce((sum, seed) => sum + seed.requestedGpuHours, 0);
+    const approvalGranted = approvalSeeds.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
+    const approvalPillars = new Set(approvalSeeds.map((seed) => seed.pillar)).size;
     const prototypes = completedSeeds.reduce((sum, seed) => sum + seed.prototypesCompleted, 0);
     const productionPilots = completedSeeds.reduce((sum, seed) => sum + seed.productionPilots, 0);
     const followOnRequests = completedSeeds.reduce((sum, seed) => sum + seed.followOnRequests, 0);
@@ -140,7 +151,7 @@ export default function Home() {
       const requestedNext = pipeline.reduce((sum, seed) => sum + seed.requestedGpuHours, 0);
       const grantedNext = pipeline.reduce((sum, seed) => sum + seed.grantedGpuHours, 0);
       const calls = pipeline.map((seed) => seed.recommendation);
-      const recommendation = calls.includes("Approve increase") ? "Increase" : calls.includes("Optimize first") ? "Optimize" : "Hold";
+      const recommendation = calls.includes("Approve increase") ? "Approve" : calls.includes("Optimize first") ? "Fix first" : "Hold";
       const budget = data.budgets.find((row) => row.pillar === pillar);
       return {
         pillar,
@@ -166,19 +177,22 @@ export default function Home() {
     const adjustOutcomes = data.outcomes.filter((item) => item.recommendation === "Adjust");
     const scaleOutcomes = data.outcomes.filter((item) => item.recommendation === "Scale");
     const standardizeOutcomes = data.outcomes.filter((item) => item.recommendation === "Standardize");
-    const adjustmentCalls: Record<string, string> = {
-      "OUT-004": "Approve another preview only after the Program Launch Readiness Checklist requires a named follow-up owner for every partner evaluation before the session closes.",
-      "OUT-010": "Approve the next cohort only after the Program Launch Readiness Checklist requires every account team to submit the same evaluation worksheet with a named partner next step before cohort close.",
+    const outcomeActions: Record<string, string> = {
+      "OUT-009": "Cancel the broad onboarding format and replace it with separate beginner setup and advanced workflow clinics before scheduling another session.",
+      "OUT-024": "Cancel the broad open-source office hour and schedule issue-specific maintainer clinics with one owner and due date per issue.",
+      "OUT-004": "Add a required follow-up-owner field to the partner evaluation worksheet and assign Diego Ruiz to enforce it for the next preview.",
+      "OUT-010": "Replace regional worksheets with one standard template containing workload, evaluation result, account owner, and dated next step for every partner.",
+      "OUT-001": "Schedule the Austin Agent Builders Day format in EMEA and APAC using the 90-minute lab guide and one facilitator per 35 developers.",
     };
     const meetingOutcomes = [...stopOutcomes, ...adjustOutcomes.slice(0, 2), ...scaleOutcomes.slice(0, 1)].map((item) => ({
       ...item,
-      preparedCall: item.recommendation === "Stop"
-        ? `Do not repeat this format. ${item.learning}`
+      preparedCall: outcomeActions[item.id] || (item.recommendation === "Stop"
+        ? "Cancel this format and replace it with an issue-specific session before adding another date."
         : item.recommendation === "Adjust"
-          ? adjustmentCalls[item.id] || `Approve the next cohort only after ${item.playbook} is updated with this requirement: ${item.learning}`
+          ? `Update ${item.playbook} with the required field, owner, and approval gate before scheduling the next cohort.`
           : item.recommendation === "Scale"
-            ? `Approve reuse in ${item.regionsReusing.join(", ") || "one additional region"} using ${item.reusableAsset}.`
-            : `Make ${item.reusableAsset} the default asset in ${item.playbook}.`,
+            ? `Schedule the format in ${item.regionsReusing.join(", ") || "one additional region"} using ${item.reusableAsset}.`
+            : `Make ${item.reusableAsset} the default asset in ${item.playbook}.`),
     }));
     const sortedAttention = [...data.attention].sort((a, b) => severityRank(a) - severityRank(b) || (a.due || "9999-12-31").localeCompare(b.due || "9999-12-31"));
     const activationRiskCount = data.activations.filter((item) => item.status !== "On Track").length;
@@ -186,14 +200,15 @@ export default function Home() {
     const end = start ? new Date(start) : null;
     end?.setDate(end.getDate() + 13);
     const activationRank = (status: string) => status === "Blocked" ? 0 : status === "At Risk" ? 1 : status === "Watch" ? 2 : 3;
-    const priorityActivations = [...data.activations]
+    const attentionActivations = [...data.activations]
       .filter((item) => {
+        if (item.status === "On Track") return false;
         if (!start || !end) return true;
         const date = new Date(`${item.date}T12:00:00`);
         return date >= start && date <= end;
       })
       .sort((a, b) => activationRank(a.status) - activationRank(b.status) || a.date.localeCompare(b.date))
-      .slice(0, 8);
+      .slice(0, 5);
     const seedDecision = sortedAttention.find((item) => item.tags.includes("gpu-seeding"));
     const readinessDecision = sortedAttention.find((item) => item.source === "Jira" && item.tags.includes("readiness"));
     const budgetDecision = sortedAttention
@@ -218,7 +233,7 @@ export default function Home() {
       source: item.source,
       sourceId: item.id,
     }));
-    return { totalBudget, totalForecast, gpuSeedBudget, gpuSeedForecast, completedSeeds, pipelineSeeds, historicalUtilization, pipelineRequested, pipelineGranted, prototypes, productionPilots, followOnRequests, gpuInvestmentCalls, gpuNoRequestPillars, stopOutcomes, adjustOutcomes, scaleOutcomes, standardizeOutcomes, meetingOutcomes, sortedAttention, activationRiskCount, priorityActivations, decisionItems };
+    return { totalBudget, totalForecast, gpuSeedBudget, gpuSeedForecast, completedSeeds, pipelineSeeds, historicalUtilization, pipelineRequested, pipelineGranted, approvalSeeds, holdSeeds, approvalRequested, approvalGranted, approvalPillars, prototypes, productionPilots, followOnRequests, gpuInvestmentCalls, gpuNoRequestPillars, stopOutcomes, adjustOutcomes, scaleOutcomes, standardizeOutcomes, meetingOutcomes, sortedAttention, activationRiskCount, attentionActivations, decisionItems };
   }, [data]);
 
   async function copyBrief() {
@@ -285,7 +300,7 @@ export default function Home() {
           </div>
           <div className="intro-note">
             <span className="note-index">LIVE</span>
-            <p>An operational control tower connecting decisions, post-activation developer results, budgets, risks, owners, and the playbooks that must change.</p>
+            <p>This dashboard helps leaders turn fragmented activation data into three decisions: what needs attention, what is producing accelerated applications, and where to invest, fix, or stop.</p>
           </div>
         </div>
 
@@ -293,7 +308,7 @@ export default function Home() {
           <nav className="view-tabs four-tabs primary-tabs" aria-label="Primary dashboard views">
             {([
               ["overview", "Overview", "attention first"],
-              ["portfolio", "Calendar + budget", "cross-pillar"],
+              ["portfolio", "Budget", "resource decisions"],
               ["outcomes", "Results + playbook", "repeat, fix, or stop"],
               ["meeting", "Monday review", "decision queue"],
             ] as const).map(([id, label, detail]) => (
@@ -315,33 +330,46 @@ export default function Home() {
         {data && summary && view === "overview" && (
           <div className="view-content">
             <section className="metric-grid ops-metrics executive-metrics" aria-label="Portfolio summary">
-              <article className="metric-card primary-metric"><span className="metric-label">Formats requiring change</span><strong>{summary.stopOutcomes.length + summary.adjustOutcomes.length}</strong><span className="delta">{summary.stopOutcomes.length} stop · {summary.adjustOutcomes.length} fix before repeat</span></article>
+              <article className="metric-card primary-metric"><span className="metric-label">Activations needing attention</span><strong>{summary.activationRiskCount}</strong><span className="delta">{summary.attentionActivations.length} prioritized in the next 14 days</span></article>
               <article className="metric-card"><span className="metric-label">Activations this month</span><strong>{data.totals.monthlyActivations}</strong><span className="delta">{summary.activationRiskCount} monthly exceptions</span></article>
               <article className="metric-card"><span className="metric-label">Quarter budget</span><strong>{money(summary.totalBudget)}</strong><span className={`delta ${summary.totalForecast > summary.totalBudget ? "critical-text" : "positive"}`}>Forecast {money(summary.totalForecast)}</span></article>
               <article className="metric-card seed-metric"><span className="metric-label">GPU seeding forecast</span><strong>{money(summary.gpuSeedForecast)}</strong><span className={`delta ${summary.gpuSeedForecast > summary.gpuSeedBudget ? "critical-text" : "positive"}`}>{money(summary.gpuSeedForecast - summary.gpuSeedBudget)} vs plan · {Math.round(summary.historicalUtilization * 100)}% prior utilization</span></article>
               <article className="metric-card outcome-metric"><span className="metric-label">Decisions ready</span><strong>{summary.decisionItems.length}</strong><span className="delta positive">recommendation, owner, and evidence</span></article>
             </section>
 
-            <section className="lead-read">
-              <div><p className="eyebrow">LEADERSHIP READ</p><Badge tone="critical">{summary.decisionItems.length} decisions</Badge></div>
-              <p><b>Attention is ranked from current source records.</b> Monday should decide where GPU seeding earns more investment, where delivery must improve first, and which forecast pressures require a tradeoff—not tour all {data.totals.jiraItems} roadmap items.</p>
-              <button className="text-button" onClick={() => setView("meeting")}>Open decision brief <span>→</span></button>
-            </section>
-
             <section className="attention-panel panel">
               <div className="panel-heading">
-                <div><p className="eyebrow">RANKED EXCEPTIONS</p><h2>What needs attention now</h2></div>
-                <Badge tone="neutral">Top 5 of {data.attention.length}</Badge>
+                <div><p className="eyebrow">NEXT 14 DAYS</p><h2>Activation issues requiring attention</h2></div>
+                <Badge tone="neutral">{summary.attentionActivations.length} priorities</Badge>
               </div>
-              <div className="attention-table" role="table" aria-label="Items requiring attention">
-                <div className="attention-row attention-head" role="row"><span>Urgency</span><span>Item</span><span>Why it matters</span><span>Owner / due</span><span>Source</span></div>
-                {summary.sortedAttention.slice(0, 5).map((item) => (
-                  <div className="attention-row" role="row" key={`${item.source}-${item.id}`}>
-                    <div><Badge tone={item.severity.toLowerCase()}>{item.severity}</Badge></div>
-                    <div><b>{item.title}</b><small>{item.pillar}</small></div>
-                    <div><p>{item.reason}</p><strong>Next: {item.nextAction}</strong></div>
-                    <div><b>{item.owner}</b><small>{shortDate(item.due)}</small></div>
-                    <div><span className={`source-dot source-${item.source.toLowerCase().replace(" ", "-")}`} />{item.source}</div>
+              <div className="attention-table" role="table" aria-label="Activations requiring attention in the next 14 days">
+                <div className="attention-row attention-head" role="row"><span>Status</span><span>Activation</span><span>Issue and required action</span><span>Owner</span><span>Date</span></div>
+                {summary.attentionActivations.map((item) => (
+                  <div className="attention-row" role="row" key={item.activationId}>
+                    <div><Badge tone={item.status === "Blocked" ? "critical" : "watch"}>{item.status}</Badge></div>
+                    <div><b>{item.name}</b><small>{item.pillar} · {item.region}</small></div>
+                    <div><p>{item.risk}</p><strong>Next: {item.nextAction}</strong></div>
+                    <div><b>{item.owner}</b></div>
+                    <div><b>{shortDate(item.date)}</b></div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="panel proxy-panel">
+              <div className="panel-heading proxy-heading">
+                <div><p className="eyebrow">WEEKLY GOAL CHECK</p><h2>Did each activation type achieve its leading goal?</h2></div>
+                <div className="north-star"><span>North Star</span><b>Accelerated applications</b><small>software built and shipped on NVIDIA</small></div>
+              </div>
+              <p className="proxy-explainer">Latest matured cohort for each measurement window. Attendance and cost are context only; neither determines success.</p>
+              <div className="proxy-table" role="table" aria-label="Weekly activation proxy status">
+                <div className="proxy-row proxy-head" role="row"><span>Activation type</span><span>Primary proxy</span><span>This period</span><span>Goal achieved?</span></div>
+                {data.activationProxies.map((proxy) => (
+                  <div className="proxy-row" role="row" key={proxy.id}>
+                    <div><b>{proxy.activationType}</b><small>{proxy.funnelStage}</small><em>{proxy.attendance ? `${proxy.attendance.toLocaleString()} attendance · ` : ""}{money(proxy.cost)} cost</em></div>
+                    <div><b>{proxy.primaryProxy}</b><small>{proxy.measurementWindow} window · Decision: {proxy.decision}</small></div>
+                    <div><strong>{proxy.actualLabel}</strong><small>Target {proxy.targetLabel}</small></div>
+                    <div><Badge tone={proxy.achieved ? "healthy" : "watch"}>{proxy.achieved ? "Achieved" : "Needs work"}</Badge><small>Quarterly validation: {proxy.quarterlyReview}</small></div>
                   </div>
                 ))}
               </div>
@@ -353,20 +381,28 @@ export default function Home() {
         {data && summary && view === "portfolio" && (
           <div className="view-content portfolio-view">
             <section className="section-hero compact-hero">
-              <div><p className="eyebrow">CALENDAR + BUDGET + PRIORITIES</p><h2>One portfolio.<br />Multiple operating pillars.</h2></div>
-              <p>Leads keep their working systems. This view normalizes only the fields needed for coordination: status, risk, owner, date, budget, and next action.</p>
+              <div><p className="eyebrow">BUDGET + GPU CAPACITY</p><h2>Where should we<br />move or add resources?</h2></div>
+              <p>Start with named GPU-seeding decisions, then review the pillar forecast. Activation readiness stays on Overview so this page answers one question: where should leadership invest or make a tradeoff?</p>
             </section>
 
-            <section className="panel portfolio-panel">
-              <div className="panel-heading"><div><p className="eyebrow">PRIORITY WINDOW · NEXT 14 DAYS</p><h2>Activation calendar</h2></div><Badge tone="healthy">{summary.priorityActivations.length} shown · {data.activations.length} monthly</Badge></div>
-              <div className="calendar-table">
-                <div className="calendar-row calendar-head"><span>Date</span><span>Activation</span><span>Pillar / region</span><span>Owner</span><span>Status</span><span>Next action</span><span>Budget</span></div>
-                {summary.priorityActivations.map((item) => (
-                  <div className="calendar-row" key={item.id}>
-                    <b>{shortDate(item.date)}</b><div><strong>{item.name}</strong>{item.risk !== "None" && <small>{item.risk}</small>}</div><div><span>{item.pillar}</span><small>{item.region}</small></div><span>{item.owner}</span><Badge tone={item.status === "On Track" ? "healthy" : item.status === "Blocked" ? "critical" : "watch"}>{item.status}</Badge><p>{item.nextAction}</p><b>{money(item.budget)}</b>
-                  </div>
+            <section className="panel seed-panel">
+              <div className="panel-heading seed-heading"><div><p className="eyebrow">ACTIVATION-LINKED INVESTMENT</p><h2>Where should GPU seeding change?</h2></div><a className="evidence-link" href={gpuEvidenceUrl} target="_blank" rel="noreferrer">View source data ↗</a></div>
+              <div className="seed-summary-grid">
+                <article><span>Additional budget approval</span><strong>{money(summary.gpuSeedForecast - summary.gpuSeedBudget)}</strong><small>{money(summary.gpuSeedForecast)} forecast vs {money(summary.gpuSeedBudget)} approved plan</small></article>
+                <article><span>Requests ready to approve</span><strong>{summary.approvalSeeds.length}</strong><small>named activation cohorts across {summary.approvalPillars} pillars</small></article>
+                <article><span>Additional GPU hours</span><strong>{(summary.approvalRequested - summary.approvalGranted).toLocaleString()}</strong><small>gap for requests that meet the approval threshold</small></article>
+                <article><span>Requests on hold</span><strong>{summary.holdSeeds.length}</strong><small>need stronger workload or utilization evidence</small></article>
+              </div>
+              <div className="seed-decision-list">
+                {summary.gpuInvestmentCalls.map((call) => (
+                  <article key={call.pillar}>
+                    <Badge tone={call.recommendation === "Approve" ? "healthy" : call.recommendation === "Fix first" ? "watch" : "neutral"}>{call.recommendation}</Badge>
+                    <div><h3>{call.pillar} · {call.pipelineCount} named requests</h3><p>{call.useCase}</p><small>{call.pipelineActivations.join(" · ")} · {call.gpuProducts.map(gpuProductLabel).join(", ")} · {call.deliveryModes.join(", ")}</small></div>
+                    <div className="seed-rationale"><b>Q4 decision rationale</b><p>{call.recommendation === "Approve" ? "Meets the seeding-change criteria: prior utilization cleared the 75% threshold, the cohort produced working prototypes, and named Q4 demand exceeds provisional capacity." : call.recommendation === "Fix first" ? "Does not yet meet the approval gate: demand exists, but setup or support readiness must be corrected before adding Q4 capacity." : "Does not meet the seeding-change criteria: utilization is below the 75% threshold or the workload-to-prototype evidence is incomplete. Keep the Q4 allocation unchanged."}</p><small>Evidence: {Math.round(call.utilization * 100)}% utilization · {call.prototypes} prototypes · {(call.requestedNext - call.grantedNext).toLocaleString()} additional hours requested</small></div>
+                  </article>
                 ))}
               </div>
+              <div className="seed-method"><span><b>Approve</b> means authorize the incremental Q4 GPU hours for the named activation cohorts.</span><span><b>Hold</b> means keep Q4 capacity unchanged until the request meets the evidence gate.</span><span><b>No Q4 request:</b> {summary.gpuNoRequestPillars.join(" · ")}.</span></div>
             </section>
 
             <section className="panel portfolio-panel budget-panel">
@@ -383,29 +419,6 @@ export default function Home() {
                 })}
               </div>
               <div className="budget-legend"><span><i /> Actual spend</span><span><em /> Forecast position</span><span>100% = approved budget</span></div>
-            </section>
-
-            <section className="panel seed-panel">
-              <div className="panel-heading seed-heading"><div><p className="eyebrow">ACTIVATION-LINKED INVESTMENT</p><h2>Where should GPU seeding change?</h2></div><a className="evidence-link" href={gpuEvidenceUrl} target="_blank" rel="noreferrer">View source data ↗</a></div>
-              <div className="seed-basis" aria-label="GPU seeding decision basis">
-                <b>Decision basis</b><span><i>1</i> Demand gap</span><span><i>2</i> Prior utilization</span><span><i>3</i> Prototypes and pilots</span>
-              </div>
-              <div className="seed-summary-grid">
-                <article><span>Seed forecast vs plan</span><strong>{money(summary.gpuSeedForecast)}</strong><small>{money(summary.gpuSeedBudget)} approved · {money(summary.gpuSeedForecast - summary.gpuSeedBudget)} variance</small></article>
-                <article><span>Historical utilization</span><strong>{Math.round(summary.historicalUtilization * 100)}%</strong><small>{summary.completedSeeds.length} completed activation cohorts</small></article>
-                <article><span>Technical conversion</span><strong>{summary.prototypes}</strong><small>{summary.productionPilots} production pilots · {summary.followOnRequests} follow-on requests</small></article>
-                <article><span>Q3 capacity gap</span><strong>{(summary.pipelineRequested - summary.pipelineGranted).toLocaleString()}</strong><small>{summary.pipelineRequested.toLocaleString()} requested vs {summary.pipelineGranted.toLocaleString()} provisional GPU hours</small></article>
-              </div>
-              <div className="seed-decision-list">
-                {summary.gpuInvestmentCalls.map((call) => (
-                  <article key={call.pillar}>
-                    <Badge tone={call.recommendation === "Increase" ? "healthy" : call.recommendation === "Optimize" ? "watch" : "neutral"}>{call.recommendation === "Increase" ? `Fund ${call.pipelineCount} requests` : call.recommendation}</Badge>
-                    <div><h3>{call.pillar}: {call.useCase}</h3><p>{call.pipelineActivations.join(" · ")}</p><small>{call.gpuProducts.join(", ")} · {call.deliveryModes.join(", ")}</small></div>
-                    <div className="seed-proof"><b>{Math.round(call.utilization * 100)}%</b><span>prior use</span><b>{call.prototypes}</b><span>prototypes</span><b>{(call.requestedNext - call.grantedNext).toLocaleString()}</b><span>hour gap</span></div>
-                  </article>
-                ))}
-              </div>
-              <div className="seed-method"><span><b>Fund</b> means approving additional GPU hours for these named developer workloads—not giving GPUs to the pillar itself.</span><span><b>Hold</b> means keep current provisional capacity until a cohort proves workload conversion.</span><span><b>No Q3 request:</b> {summary.gpuNoRequestPillars.join(" · ")}.</span></div>
             </section>
 
           </div>
@@ -433,16 +446,12 @@ export default function Home() {
                     <div className="outcome-call"><Badge tone={item.recommendation === "Stop" ? "critical" : item.recommendation === "Adjust" ? "watch" : "healthy"}>{item.recommendation === "Stop" ? "Do not repeat" : item.recommendation === "Adjust" ? "Fix first" : "Expand"}</Badge><small>{item.id}</small></div>
                     <div className="outcome-subject"><h3>{item.activation}</h3><p>{item.pillar} · {item.originRegion} · {item.owner}</p><small>{item.strategicOutcome}</small></div>
                     <div className="outcome-proof"><span>{item.successMetric}</span><b>{item.actual} <small>actual</small> / {item.target} <small>required</small></b><p>{money(item.cost)} delivery cost</p></div>
-                    <div className="outcome-action"><span>Decision proposed</span><p>{item.preparedCall}</p><small>Playbook to update: {item.playbook}</small></div>
+                    <div className="outcome-action"><span>Action item</span><p>{item.preparedCall}</p><small>Playbook to update: {item.playbook}</small></div>
                   </article>
                 ))}
               </div>
             </section>
 
-            <section className="panel operating-change-map">
-              <div><p className="eyebrow">HANDBOOK = THE SYSTEM CHANGE</p><h2>The meeting is not finished until a tracker or playbook changes.</h2></div>
-              <div className="change-rule-grid"><article><Badge tone="critical">Stop</Badge><p>Cancel repeat instances and record the replacement format.</p></article><article><Badge tone="watch">Adjust</Badge><p>Add the required change to the readiness gate before reopening registration.</p></article><article><Badge tone="healthy">Scale</Badge><p>Name the next region, local owner, date, and approved reusable asset.</p></article><article><Badge tone="healthy">Standardize</Badge><p>Update the default checklist or playbook and communicate the new standard.</p></article></div>
-            </section>
           </div>
         )}
 
@@ -454,7 +463,7 @@ export default function Home() {
             </section>
 
             <section className="agenda-bar">
-              <div><b>05</b><span>What changed<br />since last Monday</span></div><div><b>20</b><span>Ranked decisions<br />with recommendations</span></div><div><b>05</b><span>Read back owners,<br />dates, and changes</span></div><p>All project-by-project reporting stays asynchronous.</p>
+              <div><b>5 min</b><span>Confirm the {summary.decisionItems.length}-item agenda<br />and decision order</span></div><div><b>20 min</b><span>Decide the {summary.decisionItems.length} ranked calls<br />shown below</span></div><div><b>5 min</b><span>Confirm the owner, due date,<br />and update on each card</span></div><p>These are meeting timeboxes, not item counts. Project-by-project status stays asynchronous.</p>
             </section>
 
             <div className="decision-list">
